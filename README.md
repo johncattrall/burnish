@@ -10,6 +10,27 @@ Use a one-tap preset (Tidy, Restructure, Distill...), write your own reusable pr
 Mermaid diagrams and tables, build a Map of Content, or merge several people's meeting notes into
 one deduplicated note without losing information.
 
+## Screenshots
+
+**Tidy** — fix grammar, spelling and punctuation, with a per-hunk diff before anything is written:
+
+![Tidy diff preview](screenshots/tidy-diff.png)
+
+**Restructure** — turn a wall of text into clean headed sections:
+
+![Restructure diff preview](screenshots/restructure-diff.png)
+
+**Merge & dedupe meeting notes** — combine several people's notes into one structured note,
+flagging conflicts that need reconciliation:
+
+![Merge meeting notes diff preview](screenshots/merge-meeting-notes.png)
+
+**Generate a Mermaid diagram** from prose, previewed then inserted at the cursor:
+
+![Mermaid diagram generation preview](screenshots/mermaid-diff.png)
+
+![The generated Mermaid flowchart rendered in the note](screenshots/mermaid-rendered.png)
+
 ## Features
 
 - **Diff preview, always.** Every change is shown as a per-hunk diff you accept or reject. Nothing
