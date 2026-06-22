@@ -1,6 +1,7 @@
 import { App, PluginSettingTab, Setting } from "obsidian";
 import type BurnishPlugin from "../main";
 import type { Grit, PromptAction, ProviderId } from "./settings";
+import { countSnapshots, clearHistory } from "../core/history";
 
 /** Settings UI: provider + keys, defaults, prompt library, folder defaults, merge, hosted tier. */
 export class BurnishSettingTab extends PluginSettingTab {
@@ -29,6 +30,8 @@ export class BurnishSettingTab extends PluginSettingTab {
 		this.promptLibrarySection(containerEl);
 		this.folderDefaultsSection(containerEl);
 		this.mergeSection(containerEl);
+		this.historySection(containerEl);
+		this.scheduleSection(containerEl);
 	}
 
 	// ---- provider ---------------------------------------------------------------------
@@ -385,6 +388,101 @@ export class BurnishSettingTab extends PluginSettingTab {
 					this.s.mergeAttribution = v;
 					await this.save();
 				}),
+			);
+	}
+
+	// ---- history ----------------------------------------------------------------------
+
+	private historySection(c: HTMLElement) {
+		new Setting(c).setName("History & rollback").setHeading();
+
+		new Setting(c)
+			.setName("Save versions")
+			.setDesc("Snapshot a note before Burnish rewrites it, so edits can be rolled back.")
+			.addToggle((t) =>
+				t.setValue(this.s.history.enabled).onChange(async (v) => {
+					this.s.history.enabled = v;
+					await this.save();
+				}),
+			);
+
+		new Setting(c)
+			.setName("Versions kept per note")
+			.addText((t) =>
+				t
+					.setValue(String(this.s.history.maxPerNote))
+					.onChange(async (v) => {
+						const n = parseInt(v, 10);
+						if (!Number.isNaN(n) && n > 0) {
+							this.s.history.maxPerNote = n;
+							await this.save();
+						}
+					}),
+			);
+
+		const total = countSnapshots(this.s.historyStore);
+		new Setting(c)
+			.setName("Stored snapshots")
+			.setDesc(`${total} across all notes.`)
+			.addButton((b) =>
+				b
+					.setButtonText("Clear all history")
+					.setWarning()
+					.onClick(async () => {
+						if (!window.confirm("Delete all saved Burnish versions for every note?")) return;
+						clearHistory(this.s.historyStore);
+						await this.save();
+						this.display();
+					}),
+			);
+	}
+
+	// ---- schedule ---------------------------------------------------------------------
+
+	private scheduleSection(c: HTMLElement) {
+		new Setting(c).setName("Scheduled burnish").setHeading();
+
+		new Setting(c)
+			.setName("Enable")
+			.setDesc("Run an action across a folder once a day (in place, snapshotted to history).")
+			.addToggle((t) =>
+				t.setValue(this.s.schedule.enabled).onChange(async (v) => {
+					this.s.schedule.enabled = v;
+					await this.save();
+				}),
+			);
+
+		new Setting(c)
+			.setName("Folder glob")
+			.setDesc("e.g. Daily/ or Journal/*")
+			.addText((t) =>
+				t.setValue(this.s.schedule.folderGlob).onChange(async (v) => {
+					this.s.schedule.folderGlob = v.trim();
+					await this.save();
+				}),
+			);
+
+		new Setting(c).setName("Action").addDropdown((d) => {
+			for (const a of this.s.actions) d.addOption(a.id, a.name);
+			d.setValue(this.s.schedule.actionId).onChange(async (v) => {
+				this.s.schedule.actionId = v;
+				await this.save();
+			});
+		});
+
+		new Setting(c)
+			.setName("Run after (24h local time)")
+			.setDesc("Fires once per day, the first time Obsidian is open after this time.")
+			.addText((t) =>
+				t
+					.setPlaceholder("03:00")
+					.setValue(this.s.schedule.time)
+					.onChange(async (v) => {
+						if (/^\d{1,2}:\d{2}$/.test(v.trim())) {
+							this.s.schedule.time = v.trim();
+							await this.save();
+						}
+					}),
 			);
 	}
 }

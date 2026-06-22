@@ -17,18 +17,27 @@ import {
 import { BurnishSettingTab } from "./settings/SettingsTab";
 import { makeProvider, defaultModel } from "./providers/factory";
 import { buildRequest, splitFrontmatter } from "./core/context";
-import { enabledActions, resolveForPath } from "./core/promptLibrary";
+import { enabledActions, resolveForPath, globToRegExp, getAction } from "./core/promptLibrary";
 import { restore, droppedPlaceholders } from "./util/protect";
 import { estimateTokens } from "./util/chunk";
 import { buildMergeUser, MERGE_SYSTEM, type MergeSource } from "./core/merge";
 import { buildMermaidUser, MERMAID_SYSTEM, normalizeMermaid } from "./core/mermaid";
 import { buildTableUser, TABLE_SYSTEM, normalizeTable } from "./core/tables";
 import { buildMocUser, MOC_SYSTEM, type MocEntry } from "./core/moc";
+import {
+	addSnapshot,
+	getSnapshots,
+	clearHistory,
+	renameHistory,
+	type Snapshot,
+} from "./core/history";
 import type { VariableContext } from "./core/variables";
+import { collect } from "./providers/Provider";
 import { DiffModal } from "./ui/DiffModal";
 import { PromptInputModal } from "./ui/PromptInputModal";
 import { ActionPicker } from "./ui/ActionPicker";
 import { FilePickerModal } from "./ui/FilePickerModal";
+import { HistoryModal } from "./ui/HistoryModal";
 import { replaceRange, insertAtCursor, wholeDocRange, type TargetRange } from "./util/apply";
 
 export default class BurnishPlugin extends Plugin {
@@ -39,7 +48,32 @@ export default class BurnishPlugin extends Plugin {
 		this.addSettingTab(new BurnishSettingTab(this.app, this));
 		this.registerCommands();
 		this.registerMenus();
+		this.registerHistorySync();
 		this.addRibbonIcon("sparkles", "Burnish", () => this.openPicker());
+
+		// Scheduled burnish: check shortly after load, then every 10 minutes while open.
+		this.app.workspace.onLayoutReady(() => void this.maybeRunSchedule());
+		this.registerInterval(window.setInterval(() => void this.maybeRunSchedule(), 10 * 60 * 1000));
+	}
+
+	/** Keep the history store keyed correctly as notes are renamed or deleted. */
+	private registerHistorySync() {
+		this.registerEvent(
+			this.app.vault.on("rename", (file, oldPath) => {
+				if (file instanceof TFile) {
+					renameHistory(this.settings.historyStore, oldPath, file.path);
+					void this.saveSettings();
+				}
+			}),
+		);
+		this.registerEvent(
+			this.app.vault.on("delete", (file) => {
+				if (file instanceof TFile) {
+					clearHistory(this.settings.historyStore, file.path);
+					void this.saveSettings();
+				}
+			}),
+		);
 	}
 
 	async loadSettings() {
@@ -107,6 +141,18 @@ export default class BurnishPlugin extends Plugin {
 			id: "moc",
 			name: "Generate Map of Content (MOC)…",
 			callback: () => this.runMoc(),
+		});
+
+		this.addCommand({
+			id: "batch",
+			name: "Batch burnish across files…",
+			callback: () => this.runBatch(),
+		});
+
+		this.addCommand({
+			id: "history",
+			name: "Version history for current note…",
+			editorCallback: (_editor, view) => this.openHistory(view.file ?? null),
 		});
 	}
 
@@ -224,11 +270,169 @@ export default class BurnishPlugin extends Plugin {
 			warnings,
 			onReRun: () => this.runAction(editor, view, action),
 			onApply: (result) => {
-				if (action.output === "insert") insertAtCursor(editor, result);
-				else if (action.output === "newNote") void this.writeNewNote(file, action.name, result);
-				else replaceRange(editor, result, range);
+				if (action.output === "insert") {
+					insertAtCursor(editor, result);
+				} else if (action.output === "newNote") {
+					void this.writeNewNote(file, action.name, result);
+				} else {
+					// Snapshot the whole note before a replace so it can be rolled back.
+					if (file) this.snapshot(file.path, editor.getValue(), action.name);
+					replaceRange(editor, result, range);
+				}
 			},
 		}).open();
+	}
+
+	/** Record a pre-edit snapshot if history is enabled. */
+	private snapshot(path: string, content: string, label: string) {
+		if (!this.settings.history.enabled) return;
+		const snap: Snapshot = { at: nowStamp(), label, content };
+		addSnapshot(this.settings.historyStore, path, snap, this.settings.history.maxPerNote);
+		void this.saveSettings();
+	}
+
+	private openHistory(file: TFile | null) {
+		if (!file) {
+			new Notice("Burnish: open a note first.");
+			return;
+		}
+		const snaps = getSnapshots(this.settings.historyStore, file.path);
+		new HistoryModal(
+			this.app,
+			file.path,
+			snaps,
+			(snap) => void this.restoreSnapshot(file, snap),
+			() => {
+				clearHistory(this.settings.historyStore, file.path);
+				void this.saveSettings();
+				new Notice("Burnish: history cleared for this note.");
+			},
+		).open();
+	}
+
+	private async restoreSnapshot(file: TFile, snap: Snapshot) {
+		// Snapshot the current content first so a restore is itself reversible.
+		const current = await this.app.vault.read(file);
+		this.snapshot(file.path, current, "before restore");
+		await this.app.vault.modify(file, snap.content);
+		new Notice(`Burnish: restored version from ${snap.at}.`);
+	}
+
+	// ---- batch & scheduled ------------------------------------------------------------
+
+	/** Run an action on one note's body (no diff preview) and return the restored output. */
+	private async burnishText(action: PromptAction, file: TFile, body: string): Promise<string> {
+		const vars = this.buildVarContext(file);
+		const built = buildRequest({
+			action,
+			targetText: body,
+			vars,
+			grit: action.grit ?? this.grit(),
+			protectRegions: true,
+			model: this.modelFor(action, file.path),
+			temperature: this.settings.temperature,
+		});
+		const provider = makeProvider(this.settings);
+		const raw = await collect(provider.complete(built.request));
+		return restore(raw.trim(), built.protectMap);
+	}
+
+	/**
+	 * Apply an action in place across many notes. Each note's body is rewritten and the original
+	 * is snapshotted to history first (so the whole batch is reversible). Returns a summary.
+	 */
+	private async processFiles(
+		action: PromptAction,
+		files: TFile[],
+		notify: boolean,
+	): Promise<{ done: number; failed: number }> {
+		let done = 0;
+		let failed = 0;
+		const notice = notify ? new Notice(`Burnish: 0/${files.length}…`, 0) : null;
+		for (const file of files) {
+			try {
+				const whole = await this.app.vault.read(file);
+				const { frontmatter, body } = splitFrontmatter(whole);
+				if (!body.trim()) continue;
+				const newBody = await this.burnishText(action, file, body);
+				if (newBody.trim() && newBody.trim() !== body.trim()) {
+					this.snapshot(file.path, whole, `batch: ${action.name}`);
+					await this.app.vault.modify(file, frontmatter + newBody);
+				}
+				done++;
+			} catch (e) {
+				failed++;
+				console.error(`Burnish batch failed on ${file.path}:`, e);
+			}
+			notice?.setMessage(`Burnish: ${done + failed}/${files.length}…`);
+		}
+		notice?.hide();
+		return { done, failed };
+	}
+
+	private runBatch() {
+		new ActionPicker(this.app, enabledActions(this.settings), (action, isCustom) => {
+			if (isCustom) {
+				new Notice("Burnish: batch needs a saved action, not a custom one-off.");
+				return;
+			}
+			const files = this.app.vault.getMarkdownFiles();
+			const active = this.app.workspace.getActiveFile();
+			const folder = active?.parent?.path ?? "";
+			const preselect = files.filter((f) => (f.parent?.path ?? "") === folder).map((f) => f.path);
+			new FilePickerModal(
+				this.app,
+				files,
+				preselect,
+				{
+					title: `Burnish: batch "${action.name}"`,
+					description:
+						"Pick notes to rewrite in place. Originals are snapshotted to history first, so this is reversible.",
+					submitLabel: "Run batch",
+					minCount: 1,
+				},
+				async (chosen) => {
+					if (!chosen || chosen.length === 0) return;
+					if (
+						!window.confirm(
+							`Run "${action.name}" on ${chosen.length} note(s) in place?\n\nOriginals are saved to Burnish history first.`,
+						)
+					) {
+						return;
+					}
+					const { done, failed } = await this.processFiles(action, chosen, true);
+					new Notice(`Burnish: batch done. ${done} updated${failed ? `, ${failed} failed` : ""}.`);
+				},
+			).open();
+		}).open();
+	}
+
+	/** Fire the scheduled batch once per day, after the configured local time. */
+	private async maybeRunSchedule() {
+		const sch = this.settings.schedule;
+		if (!sch.enabled) return;
+		const today = isoDate();
+		if (sch.lastRunDate === today) return;
+		if (nowHHmm() < sch.time) return; // not time yet today
+
+		const action = getAction(this.settings, sch.actionId);
+		if (!action) return;
+		let re: RegExp;
+		try {
+			re = globToRegExp(sch.folderGlob);
+		} catch {
+			return;
+		}
+		const files = this.app.vault.getMarkdownFiles().filter((f) => re.test(f.path));
+
+		// Mark the run before starting so a crash mid-run doesn't loop all day.
+		sch.lastRunDate = today;
+		await this.saveSettings();
+		if (files.length === 0) return;
+
+		new Notice(`Burnish: scheduled "${action.name}" on ${files.length} note(s)…`);
+		const { done, failed } = await this.processFiles(action, files, false);
+		new Notice(`Burnish: scheduled run done. ${done} updated${failed ? `, ${failed} failed` : ""}.`);
 	}
 
 	private runCustom(editor: Editor, view: MarkdownView | MarkdownFileInfo) {
@@ -427,4 +631,14 @@ function isoDate(): string {
 	const d = new Date();
 	const pad = (n: number) => String(n).padStart(2, "0");
 	return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function nowHHmm(): string {
+	const d = new Date();
+	const pad = (n: number) => String(n).padStart(2, "0");
+	return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function nowStamp(): string {
+	return `${isoDate()} ${nowHHmm()}`;
 }

@@ -1,4 +1,5 @@
 import { DEFAULT_ACTIONS } from "../core/actions";
+import type { HistoryStore } from "../core/history";
 
 export type ProviderId = "anthropic" | "openai" | "hosted";
 
@@ -53,6 +54,22 @@ export interface BurnishSettings {
 	mergeAttribution: boolean;
 	/** Where merged / new notes are written. Empty = vault root. */
 	newNoteFolder: string;
+
+	/** Snapshot the pre-edit version of notes so edits can be rolled back. */
+	history: { enabled: boolean; maxPerNote: number };
+	/** Stored snapshots, keyed by note path. Not shown in the UI directly. */
+	historyStore: HistoryStore;
+
+	/** Nightly (or on-load) batch tidy of a folder. Edits are snapshotted to history. */
+	schedule: {
+		enabled: boolean;
+		folderGlob: string;
+		actionId: string;
+		/** "HH:mm" 24h local time after which today's run may fire. */
+		time: string;
+		/** ISO date of the last completed run, to avoid re-running the same day. */
+		lastRunDate: string;
+	};
 }
 
 export const DEFAULT_SETTINGS: BurnishSettings = {
@@ -72,6 +89,17 @@ export const DEFAULT_SETTINGS: BurnishSettings = {
 
 	mergeAttribution: true,
 	newNoteFolder: "",
+
+	history: { enabled: true, maxPerNote: 3 },
+	historyStore: {},
+
+	schedule: {
+		enabled: false,
+		folderGlob: "Daily/",
+		actionId: "tidy",
+		time: "03:00",
+		lastRunDate: "",
+	},
 };
 
 /**
@@ -85,6 +113,9 @@ export function normalizeSettings(loaded: Partial<BurnishSettings> | null): Burn
 		anthropic: { ...DEFAULT_SETTINGS.anthropic, ...(loaded?.anthropic ?? {}) },
 		openai: { ...DEFAULT_SETTINGS.openai, ...(loaded?.openai ?? {}) },
 		hosted: { ...DEFAULT_SETTINGS.hosted, ...(loaded?.hosted ?? {}) },
+		history: { ...DEFAULT_SETTINGS.history, ...(loaded?.history ?? {}) },
+		historyStore: loaded?.historyStore ?? {},
+		schedule: { ...DEFAULT_SETTINGS.schedule, ...(loaded?.schedule ?? {}) },
 	};
 
 	const have = new Set((s.actions ?? []).map((a) => a.id));
