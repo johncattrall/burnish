@@ -44,7 +44,11 @@ export class BurnishSettingTab extends PluginSettingTab {
 			.setDesc("Anthropic, any OpenAI-compatible endpoint, or Burnish Plus (hosted).")
 			.addDropdown((d) =>
 				d
-					.addOptions({ anthropic: "Anthropic", openai: "OpenAI-compatible", hosted: "Burnish Plus (hosted)" })
+					.addOptions({
+					anthropic: "Anthropic",
+					openai: "OpenAI-compatible",
+					hosted: "Burnish Plus (coming soon)",
+				})
 					.setValue(this.s.provider)
 					.onChange(async (v) => {
 						this.s.provider = v as ProviderId;
@@ -104,6 +108,13 @@ export class BurnishSettingTab extends PluginSettingTab {
 					}),
 			);
 		} else {
+			const notice = new Setting(c)
+				.setName("Burnish Plus is coming soon")
+				.setDesc(
+					"The hosted endpoint is not live yet. For now, use the Anthropic or OpenAI-compatible provider with your own key. The fields below are kept for when Plus launches.",
+				);
+			notice.settingEl.addClass("burnish-warning");
+
 			new Setting(c)
 				.setName("Burnish Plus license key")
 				.setDesc("Paste your license key; no LLM API key needed. We proxy to a managed model.")
