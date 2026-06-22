@@ -7,8 +7,8 @@ https://docs.obsidian.md/Plugins/Releasing/Submit+your+plugin and the
 ## Compliance checklist (Developer policies)
 
 - [x] **LICENSE** present (MIT).
-- [x] **README discloses network use** — which remote services are contacted and when.
-- [x] **README discloses payment/account** — none required; optional hosted tier noted.
+- [x] **README discloses network use** - which remote services are contacted and when.
+- [x] **README discloses payment/account** - none required; optional hosted tier noted.
 - [x] **No client-side telemetry / analytics.**
 - [x] **No self-update mechanism.**
 - [x] **No ads** (static or dynamic).

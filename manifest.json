@@ -2,7 +2,7 @@
 	"id": "burnish",
 	"name": "Burnish",
 	"version": "1.0.1",
-	"minAppVersion": "1.5.0",
+	"minAppVersion": "1.13.0",
 	"description": "Polish your notes with an LLM. Tidy, restructure, distill, merge meeting notes and more, always with a diff preview before anything is written.",
 	"author": "John Cattrall",
 	"authorUrl": "https://github.com/johncattrall",

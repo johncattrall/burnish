@@ -8,26 +8,26 @@ user configures. An optional hosted "Burnish Plus" proxy is a separate, out-of-r
 
 ## Layers
 
-- **`providers/`** — provider abstraction. `Provider.complete()` returns `AsyncIterable<string>`.
+- **`providers/`** - provider abstraction. `Provider.complete()` returns `AsyncIterable<string>`.
   `AnthropicProvider`, `OpenAIProvider` (any OpenAI-compatible base URL) and `HostedProvider`
   implement it. `http.ts` streams Server-Sent Events via `fetch`, falling back to Obsidian's
   `requestUrl` (buffered) when streaming fails (e.g. mobile/CORS). `factory.ts` builds the active
   provider from settings.
-- **`core/`** — pure, Obsidian-free logic (so it is unit-testable):
-  - `diff.ts` — line diff grouped into hunks; `reconstruct()` rebuilds the document from the set of
+- **`core/`** - pure, Obsidian-free logic (so it is unit-testable):
+  - `diff.ts` - line diff grouped into hunks; `reconstruct()` rebuilds the document from the set of
     accepted hunks (all accepted == model output, none == original).
-  - `context.ts` — builds the model request; splits frontmatter from body.
-  - `variables.ts` — `{{variable}}` substitution and grit guidance.
-  - `actions.ts` — built-in presets (same `PromptAction` shape as user prompts).
-  - `promptLibrary.ts` — action lookup, glob-to-regexp, per-folder defaults.
-  - `merge.ts`, `mermaid.ts`, `tables.ts`, `moc.ts` — prompt builders for those workflows.
-  - `history.ts` — snapshot store for rollback.
-- **`util/`** — `protect.ts` (mask/restore code/math/embeds/frontmatter), `chunk.ts` (token
+  - `context.ts` - builds the model request; splits frontmatter from body.
+  - `variables.ts` - `{{variable}}` substitution and grit guidance.
+  - `actions.ts` - built-in presets (same `PromptAction` shape as user prompts).
+  - `promptLibrary.ts` - action lookup, glob-to-regexp, per-folder defaults.
+  - `merge.ts`, `mermaid.ts`, `tables.ts`, `moc.ts` - prompt builders for those workflows.
+  - `history.ts` - snapshot store for rollback.
+- **`util/`** - `protect.ts` (mask/restore code/math/embeds/frontmatter), `chunk.ts` (token
   estimate + chunking for the cost guard), `apply.ts` (write to the editor as one transaction).
-- **`ui/`** — `DiffModal` (stream + per-hunk accept/reject), `ActionPicker`, `PromptInputModal`,
+- **`ui/`** - `DiffModal` (stream + per-hunk accept/reject), `ActionPicker`, `PromptInputModal`,
   `FilePickerModal`, `HistoryModal`.
-- **`settings/`** — settings model + defaults and the settings tab.
-- **`main.ts`** — plugin entry: loads settings, registers commands / menu / ribbon / hotkeys,
+- **`settings/`** - settings model + defaults and the settings tab.
+- **`main.ts`** - plugin entry: loads settings, registers commands / menu / ribbon / hotkeys,
   orchestrates each run flow, and runs batch / scheduled jobs.
 
 ## Key design points
@@ -38,7 +38,7 @@ user configures. An optional hosted "Burnish Plus" proxy is a separate, out-of-r
 - **Protected regions** are masked before send and restored after; dropped regions are surfaced as
   a warning in the diff modal.
 - **Non-previewed edits (batch, scheduled) snapshot the original to history first**, so they remain
-  reversible — preserving the "never destroy notes silently" principle.
+  reversible - preserving the "never destroy notes silently" principle.
 - **Mobile-safe**: no Node `fs`/`http`; network via `fetch`/`requestUrl` only.
 
 ## Data

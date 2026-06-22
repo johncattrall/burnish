@@ -43,7 +43,7 @@ export class HistoryModal extends Modal {
 			.addButton((b) =>
 				b
 					.setButtonText("Clear history for this note")
-					.setWarning()
+					.setDestructive()
 					.onClick(() => {
 						this.onClear();
 						this.close();

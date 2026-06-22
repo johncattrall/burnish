@@ -31,7 +31,7 @@ class ConfirmModal extends Modal {
 			.addButton((b) => b.setButtonText("Cancel").onClick(() => this.close()))
 			.addButton((b) => {
 				b.setButtonText(this.opts.cta).setCta();
-				if (this.opts.destructive) b.setWarning();
+				if (this.opts.destructive) b.setDestructive();
 				b.onClick(() => {
 					this.resolved = true;
 					this.onResult(true);

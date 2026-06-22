@@ -438,7 +438,7 @@ export class BurnishSettingTab extends PluginSettingTab {
 			.addButton((b) =>
 				b
 					.setButtonText("Clear all history")
-					.setWarning()
+					.setDestructive()
 					.onClick(async () => {
 						const ok = await confirm(this.app, {
 							title: "Clear history",
