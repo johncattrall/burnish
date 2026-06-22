@@ -22,11 +22,13 @@ import { restore, droppedPlaceholders } from "./util/protect";
 import { estimateTokens } from "./util/chunk";
 import { buildMergeUser, MERGE_SYSTEM, type MergeSource } from "./core/merge";
 import { buildMermaidUser, MERMAID_SYSTEM, normalizeMermaid } from "./core/mermaid";
+import { buildTableUser, TABLE_SYSTEM, normalizeTable } from "./core/tables";
+import { buildMocUser, MOC_SYSTEM, type MocEntry } from "./core/moc";
 import type { VariableContext } from "./core/variables";
 import { DiffModal } from "./ui/DiffModal";
 import { PromptInputModal } from "./ui/PromptInputModal";
 import { ActionPicker } from "./ui/ActionPicker";
-import { FileMergeModal } from "./ui/FileMergeModal";
+import { FilePickerModal } from "./ui/FilePickerModal";
 import { replaceRange, insertAtCursor, wholeDocRange, type TargetRange } from "./util/apply";
 
 export default class BurnishPlugin extends Plugin {
@@ -93,6 +95,18 @@ export default class BurnishPlugin extends Plugin {
 			id: "mermaid",
 			name: "Generate Mermaid diagram",
 			editorCallback: (editor, view) => this.runMermaid(editor, view),
+		});
+
+		this.addCommand({
+			id: "table",
+			name: "Generate table from prose",
+			editorCallback: (editor, view) => this.runTable(editor, view),
+		});
+
+		this.addCommand({
+			id: "moc",
+			name: "Generate Map of Content (MOC)…",
+			callback: () => this.runMoc(),
 		});
 	}
 
@@ -257,14 +271,25 @@ export default class BurnishPlugin extends Plugin {
 	private async runMergeFiles() {
 		const files = this.app.vault.getMarkdownFiles();
 		const active = this.app.workspace.getActiveFile();
-		new FileMergeModal(this.app, files, active ? [active.path] : [], async (chosen) => {
-			if (!chosen || chosen.length < 2) return;
-			const sources: MergeSource[] = [];
-			for (const f of chosen) {
-				sources.push({ label: f.basename, content: await this.app.vault.read(f) });
-			}
-			this.runMerge(sources, active ?? chosen[0]);
-		}).open();
+		new FilePickerModal(
+			this.app,
+			files,
+			active ? [active.path] : [],
+			{
+				title: "Burnish: merge & dedupe meeting notes",
+				description: "Pick the notes to merge into one new, deduplicated note.",
+				submitLabel: "Merge",
+				minCount: 2,
+			},
+			async (chosen) => {
+				if (!chosen || chosen.length < 2) return;
+				const sources: MergeSource[] = [];
+				for (const f of chosen) {
+					sources.push({ label: f.basename, content: await this.app.vault.read(f) });
+				}
+				this.runMerge(sources, active ?? chosen[0]);
+			},
+		).open();
 	}
 
 	private runMerge(sources: MergeSource[], near: TFile | null) {
@@ -315,6 +340,70 @@ export default class BurnishPlugin extends Plugin {
 			onApply: (result) => insertAtCursor(editor, "\n" + result + "\n"),
 		}).open();
 		void view;
+	}
+
+	private runTable(editor: Editor, view: MarkdownView | MarkdownFileInfo) {
+		const sel = editor.getSelection();
+		const source = sel.trim() ? sel : editor.getValue();
+		if (!source.trim()) {
+			new Notice("Burnish: nothing to tabulate.");
+			return;
+		}
+		const provider = makeProvider(this.settings);
+		new DiffModal({
+			app: this.app,
+			title: "Burnish: table from prose",
+			original: "",
+			run: (signal) =>
+				provider.complete({
+					system: TABLE_SYSTEM,
+					user: buildTableUser(source),
+					temperature: this.settings.temperature,
+					signal,
+				}),
+			transform: (raw) => normalizeTable(raw),
+			onApply: (result) => insertAtCursor(editor, "\n" + result + "\n"),
+		}).open();
+		void view;
+	}
+
+	private async runMoc() {
+		const files = this.app.vault.getMarkdownFiles();
+		const active = this.app.workspace.getActiveFile();
+		// Preselect siblings in the active file's folder to make folder MOCs one click.
+		const folder = active?.parent?.path ?? "";
+		const preselect = files.filter((f) => (f.parent?.path ?? "") === folder).map((f) => f.path);
+		new FilePickerModal(
+			this.app,
+			files,
+			preselect,
+			{
+				title: "Burnish: Map of Content",
+				description: "Pick the notes to index. A new MOC note will link them, grouped by theme.",
+				submitLabel: "Generate MOC",
+				minCount: 2,
+			},
+			(chosen) => {
+				if (!chosen || chosen.length < 2) return;
+				const entries: MocEntry[] = chosen.map((f) => ({ title: f.basename, path: f.path }));
+				const mocTitle = folder ? `${folder.split("/").pop()} MOC` : "Map of Content";
+				const provider = makeProvider(this.settings);
+				new DiffModal({
+					app: this.app,
+					title: "Burnish: Map of Content",
+					original: "",
+					run: (signal) =>
+						provider.complete({
+							system: MOC_SYSTEM,
+							user: buildMocUser(mocTitle, entries),
+							temperature: this.settings.temperature,
+							maxTokens: 4096,
+							signal,
+						}),
+					onApply: (result) => void this.writeNewNote(active ?? chosen[0], "MOC", result),
+				}).open();
+			},
+		).open();
 	}
 
 	// ---- output helpers ---------------------------------------------------------------
