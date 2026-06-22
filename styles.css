@@ -1,0 +1,104 @@
+/* Burnish diff modal */
+
+.burnish-diff-modal {
+	width: min(900px, 90vw);
+}
+
+.burnish-diff-modal .burnish-status {
+	color: var(--text-muted);
+	margin-bottom: var(--size-4-2);
+}
+
+.burnish-warnings {
+	margin-bottom: var(--size-4-2);
+}
+
+.burnish-warning {
+	color: var(--text-warning);
+	font-size: var(--font-ui-small);
+	margin-bottom: var(--size-4-1);
+}
+
+.burnish-error {
+	color: var(--text-error);
+	white-space: pre-wrap;
+}
+
+.burnish-diff-body {
+	max-height: 55vh;
+	overflow-y: auto;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	padding: var(--size-4-2);
+}
+
+.burnish-stream {
+	white-space: pre-wrap;
+	font-family: var(--font-monospace);
+	font-size: var(--font-ui-small);
+	margin: 0;
+}
+
+.burnish-hunks {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-3);
+}
+
+.burnish-hunk {
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	overflow: hidden;
+}
+
+.burnish-hunk-head {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+	padding: var(--size-4-1) var(--size-4-2);
+	background: var(--background-secondary);
+	font-size: var(--font-ui-small);
+	color: var(--text-muted);
+}
+
+.burnish-hunk-cols {
+	display: flex;
+	flex-direction: column;
+}
+
+.burnish-col pre {
+	margin: 0;
+	padding: var(--size-4-2);
+	white-space: pre-wrap;
+	font-family: var(--font-monospace);
+	font-size: var(--font-ui-small);
+}
+
+.burnish-before pre {
+	background: rgba(255, 0, 0, 0.08);
+	border-left: 3px solid var(--text-error);
+}
+
+.burnish-after pre {
+	background: rgba(0, 200, 0, 0.08);
+	border-left: 3px solid var(--color-green);
+}
+
+.burnish-diff-footer {
+	margin-top: var(--size-4-3);
+}
+
+.burnish-prompt-input {
+	width: 100%;
+	resize: vertical;
+}
+
+.burnish-file-list {
+	max-height: 50vh;
+	overflow-y: auto;
+}
+
+.burnish-muted {
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+}
