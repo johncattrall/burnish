@@ -93,6 +93,10 @@
 	resize: vertical;
 }
 
+.burnish-prompt-edit {
+	width: 100%;
+}
+
 .burnish-file-list {
 	max-height: 50vh;
 	overflow-y: auto;

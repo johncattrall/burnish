@@ -279,7 +279,7 @@ export class BurnishSettingTab extends PluginSettingTab {
 					await this.save();
 				});
 				t.inputEl.rows = 8;
-				t.inputEl.style.width = "100%";
+				t.inputEl.addClass("burnish-prompt-edit");
 			});
 
 		new Setting(containerEl).setName("Output").addDropdown((d) =>

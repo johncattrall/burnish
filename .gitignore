@@ -4,7 +4,6 @@ main.js
 
 # npm
 node_modules/
-package-lock.json
 
 # obsidian plugin data (never commit keys)
 data.json
