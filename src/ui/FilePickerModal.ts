@@ -18,7 +18,7 @@ export class FilePickerModal extends Modal {
 		private files: TFile[],
 		private preselect: string[],
 		private opts: FilePickerOptions,
-		private onSubmit: (files: TFile[] | null) => void,
+		private onSubmit: (files: TFile[] | null) => void | Promise<void>,
 	) {
 		super(app);
 		for (const p of preselect) this.selected.add(p);
@@ -51,7 +51,7 @@ export class FilePickerModal extends Modal {
 						const chosen = this.files.filter((f) => this.selected.has(f.path));
 						if (chosen.length < this.opts.minCount) return;
 						this.resolved = true;
-						this.onSubmit(chosen);
+						void this.onSubmit(chosen);
 						this.close();
 					}),
 			);
@@ -59,6 +59,6 @@ export class FilePickerModal extends Modal {
 
 	onClose() {
 		this.contentEl.empty();
-		if (!this.resolved) this.onSubmit(null);
+		if (!this.resolved) void this.onSubmit(null);
 	}
 }

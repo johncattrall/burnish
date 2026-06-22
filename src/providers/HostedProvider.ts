@@ -44,7 +44,7 @@ export class HostedProvider implements Provider {
 		try {
 			for await (const data of streamSSE({ url, headers, body, signal: req.signal })) {
 				if (data === "[DONE]") break;
-				const evt = safeJson(data);
+				const evt = safeJson<HostedEvent>(data);
 				if (!evt) continue;
 				// Proxy emits {type:"text", text:"..."} deltas, or {type:"error"}.
 				if (evt.type === "text" && typeof evt.text === "string") yield evt.text;
@@ -63,9 +63,15 @@ export class HostedProvider implements Provider {
 	}
 }
 
-function safeJson(s: string): any {
+interface HostedEvent {
+	type?: string;
+	text?: string;
+	message?: string;
+}
+
+function safeJson<T>(s: string): T | null {
 	try {
-		return JSON.parse(s);
+		return JSON.parse(s) as T;
 	} catch {
 		return null;
 	}

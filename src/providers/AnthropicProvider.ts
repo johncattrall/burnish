@@ -44,10 +44,10 @@ export class AnthropicProvider implements Provider {
 		try {
 			for await (const data of streamSSE({ url, headers, body, signal: req.signal })) {
 				if (data === "[DONE]") break;
-				const evt = safeJson(data);
+				const evt = safeJson<AnthropicEvent>(data);
 				if (!evt) continue;
 				if (evt.type === "content_block_delta" && evt.delta?.type === "text_delta") {
-					yield evt.delta.text as string;
+					yield evt.delta.text ?? "";
 				} else if (evt.type === "error") {
 					throw new ProviderError(evt.error?.message ?? "Anthropic stream error");
 				}
@@ -72,9 +72,15 @@ export class AnthropicProvider implements Provider {
 	}
 }
 
-function safeJson(s: string): any {
+interface AnthropicEvent {
+	type?: string;
+	delta?: { type?: string; text?: string };
+	error?: { message?: string };
+}
+
+function safeJson<T>(s: string): T | null {
 	try {
-		return JSON.parse(s);
+		return JSON.parse(s) as T;
 	} catch {
 		return null;
 	}

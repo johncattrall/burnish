@@ -7,6 +7,9 @@ on:
 
 permissions:
   contents: write
+  # Required for build-provenance attestations on the release assets.
+  id-token: write
+  attestations: write
 
 jobs:
   build:
@@ -32,6 +35,11 @@ jobs:
             echo "Tag ($TAG) does not match manifest version ($MANIFEST_VERSION)" >&2
             exit 1
           fi
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: "main.js, manifest.json, styles.css"
 
       - name: Create release with assets
         env:

@@ -38,7 +38,8 @@ import { PromptInputModal } from "./ui/PromptInputModal";
 import { ActionPicker } from "./ui/ActionPicker";
 import { FilePickerModal } from "./ui/FilePickerModal";
 import { HistoryModal } from "./ui/HistoryModal";
-import { replaceRange, insertAtCursor, wholeDocRange, type TargetRange } from "./util/apply";
+import { confirm } from "./ui/ConfirmModal";
+import { replaceRange, insertAtCursor, type TargetRange } from "./util/apply";
 
 export default class BurnishPlugin extends Plugin {
 	settings: BurnishSettings = DEFAULT_SETTINGS;
@@ -77,7 +78,7 @@ export default class BurnishPlugin extends Plugin {
 	}
 
 	async loadSettings() {
-		this.settings = normalizeSettings(await this.loadData());
+		this.settings = normalizeSettings((await this.loadData()) as Partial<BurnishSettings> | null);
 	}
 
 	async saveSettings() {
@@ -145,7 +146,7 @@ export default class BurnishPlugin extends Plugin {
 
 		this.addCommand({
 			id: "batch",
-			name: "Batch burnish across files…",
+			name: "Batch run across files…",
 			callback: () => this.runBatch(),
 		});
 
@@ -199,12 +200,14 @@ export default class BurnishPlugin extends Plugin {
 		return modelOverride ?? defaultModel(this.settings);
 	}
 
-	private costGuardOk(text: string): boolean {
+	private async costGuardOk(text: string): Promise<boolean> {
 		const tokens = estimateTokens(text);
 		if (tokens <= this.settings.costGuardTokens) return true;
-		return window.confirm(
-			`This note is large (~${tokens.toLocaleString()} input tokens, over your ${this.settings.costGuardTokens.toLocaleString()} guard).\n\nSend it anyway?`,
-		);
+		return confirm(this.app, {
+			title: "Large note",
+			body: `This note is large (~${tokens.toLocaleString()} input tokens, over your ${this.settings.costGuardTokens.toLocaleString()} guard). Send it anyway?`,
+			cta: "Send",
+		});
 	}
 
 	/** Main entry: run a cleanup/transform action against the selection or whole note. */
@@ -234,7 +237,7 @@ export default class BurnishPlugin extends Plugin {
 			new Notice("Burnish: nothing to burnish (note/selection is empty).");
 			return;
 		}
-		if (!this.costGuardOk(targetText)) return;
+		if (!(await this.costGuardOk(targetText))) return;
 
 		const vars = this.buildVarContext(file);
 		vars.selection = usingSelection ? selection : "";
@@ -268,7 +271,7 @@ export default class BurnishPlugin extends Plugin {
 				return restored;
 			},
 			warnings,
-			onReRun: () => this.runAction(editor, view, action),
+			onReRun: () => void this.runAction(editor, view, action),
 			onApply: (result) => {
 				if (action.output === "insert") {
 					insertAtCursor(editor, result);
@@ -393,13 +396,12 @@ export default class BurnishPlugin extends Plugin {
 				},
 				async (chosen) => {
 					if (!chosen || chosen.length === 0) return;
-					if (
-						!window.confirm(
-							`Run "${action.name}" on ${chosen.length} note(s) in place?\n\nOriginals are saved to Burnish history first.`,
-						)
-					) {
-						return;
-					}
+					const ok = await confirm(this.app, {
+						title: "Batch run",
+						body: `Run "${action.name}" on ${chosen.length} note(s) in place? Originals are saved to Burnish history first.`,
+						cta: "Run batch",
+					});
+					if (!ok) return;
 					const { done, failed } = await this.processFiles(action, chosen, true);
 					new Notice(`Burnish: batch done. ${done} updated${failed ? `, ${failed} failed` : ""}.`);
 				},
@@ -445,7 +447,7 @@ export default class BurnishPlugin extends Plugin {
 				output: "replace",
 				enabled: true,
 			};
-			this.runAction(editor, view, action);
+			void this.runAction(editor, view, action);
 		}).open();
 	}
 
@@ -457,7 +459,7 @@ export default class BurnishPlugin extends Plugin {
 		}
 		new ActionPicker(this.app, enabledActions(this.settings), (action, isCustom) => {
 			if (isCustom) this.runCustom(view.editor, view);
-			else this.runAction(view.editor, view, action);
+			else void this.runAction(view.editor, view, action);
 		}).open();
 	}
 
@@ -469,7 +471,7 @@ export default class BurnishPlugin extends Plugin {
 			new Notice("Burnish: note is empty.");
 			return;
 		}
-		this.runMerge([{ label: view.file?.basename ?? "Note", content: text }], view.file ?? null);
+		void this.runMerge([{ label: view.file?.basename ?? "Note", content: text }], view.file ?? null);
 	}
 
 	private async runMergeFiles() {
@@ -491,16 +493,17 @@ export default class BurnishPlugin extends Plugin {
 				for (const f of chosen) {
 					sources.push({ label: f.basename, content: await this.app.vault.read(f) });
 				}
-				this.runMerge(sources, active ?? chosen[0]);
+				void this.runMerge(sources, active ?? chosen[0]);
 			},
 		).open();
 	}
 
-	private runMerge(sources: MergeSource[], near: TFile | null) {
+	private async runMerge(sources: MergeSource[], near: TFile | null) {
 		const user = buildMergeUser({ sources, attribution: this.settings.mergeAttribution });
 		const total = sources.reduce((n, s) => n + estimateTokens(s.content), 0);
-		if (total > this.settings.costGuardTokens && !this.costGuardOk(sources.map((s) => s.content).join("\n"))) {
-			return;
+		if (total > this.settings.costGuardTokens) {
+			const ok = await this.costGuardOk(sources.map((s) => s.content).join("\n"));
+			if (!ok) return;
 		}
 		const provider = makeProvider(this.settings);
 		new DiffModal({

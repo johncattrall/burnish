@@ -38,8 +38,9 @@ export async function requestJson(req: HttpRequest): Promise<unknown> {
  * non-2xx status so callers can fall back to buffered mode.
  */
 export async function* streamSSE(req: HttpRequest): AsyncGenerator<string> {
-	let res: Response;
-	res = await fetch(req.url, {
+	// Obsidian's requestUrl cannot stream a response incrementally, so genuine token streaming
+	// requires fetch. We fall back to requestUrl (buffered) in the providers when this fails.
+	const res = await fetch(req.url, {
 		method: "POST",
 		headers: { "Content-Type": "application/json", ...req.headers },
 		body: JSON.stringify(req.body),
@@ -77,12 +78,18 @@ export async function* streamSSE(req: HttpRequest): AsyncGenerator<string> {
 	}
 }
 
+interface ErrorBody {
+	error?: { message?: string } | string;
+	message?: string;
+}
+
 /** Best-effort extraction of a human message from an error body. */
 function extractError(text: string | undefined): string | undefined {
 	if (!text) return undefined;
 	try {
-		const j = JSON.parse(text);
-		return j?.error?.message ?? j?.message ?? j?.error ?? undefined;
+		const j = JSON.parse(text) as ErrorBody;
+		const err = typeof j.error === "string" ? j.error : j.error?.message;
+		return err ?? j.message ?? undefined;
 	} catch {
 		return text.slice(0, 300);
 	}

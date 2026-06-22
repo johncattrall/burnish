@@ -44,7 +44,7 @@ export class OpenAIProvider implements Provider {
 		try {
 			for await (const data of streamSSE({ url, headers, body, signal: req.signal })) {
 				if (data === "[DONE]") break;
-				const evt = safeJson(data);
+				const evt = safeJson<OpenAIEvent>(data);
 				const delta = evt?.choices?.[0]?.delta?.content;
 				if (typeof delta === "string" && delta.length) yield delta;
 			}
@@ -63,9 +63,13 @@ export class OpenAIProvider implements Provider {
 	}
 }
 
-function safeJson(s: string): any {
+interface OpenAIEvent {
+	choices?: Array<{ delta?: { content?: string } }>;
+}
+
+function safeJson<T>(s: string): T | null {
 	try {
-		return JSON.parse(s);
+		return JSON.parse(s) as T;
 	} catch {
 		return null;
 	}

@@ -2,6 +2,7 @@ import { App, PluginSettingTab, Setting } from "obsidian";
 import type BurnishPlugin from "../main";
 import type { Grit, PromptAction, ProviderId } from "./settings";
 import { countSnapshots, clearHistory } from "../core/history";
+import { confirm } from "../ui/ConfirmModal";
 
 /** Settings UI: provider + keys, defaults, prompt library, folder defaults, merge, hosted tier. */
 export class BurnishSettingTab extends PluginSettingTab {
@@ -160,7 +161,6 @@ export class BurnishSettingTab extends PluginSettingTab {
 			sl
 				.setLimits(0, 1, 0.1)
 				.setValue(this.s.temperature)
-				.setDynamicTooltip()
 				.onChange(async (v) => {
 					this.s.temperature = v;
 					await this.save();
@@ -440,7 +440,13 @@ export class BurnishSettingTab extends PluginSettingTab {
 					.setButtonText("Clear all history")
 					.setWarning()
 					.onClick(async () => {
-						if (!window.confirm("Delete all saved Burnish versions for every note?")) return;
+						const ok = await confirm(this.app, {
+							title: "Clear history",
+							body: "Delete all saved Burnish versions for every note?",
+							cta: "Delete all",
+							destructive: true,
+						});
+						if (!ok) return;
 						clearHistory(this.s.historyStore);
 						await this.save();
 						this.display();
@@ -451,7 +457,7 @@ export class BurnishSettingTab extends PluginSettingTab {
 	// ---- schedule ---------------------------------------------------------------------
 
 	private scheduleSection(c: HTMLElement) {
-		new Setting(c).setName("Scheduled burnish").setHeading();
+		new Setting(c).setName("Scheduled cleanup").setHeading();
 
 		new Setting(c)
 			.setName("Enable")
