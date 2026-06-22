@@ -85,9 +85,29 @@ Once listed: Settings → Community plugins → Browse → search "Burnish" → 
 
 - **Selection vs. note** — if text is selected, the action runs on the selection; otherwise the
   whole note (frontmatter excluded).
-- **Hotkeys** — every action is a command, so bind any of them under Settings → Hotkeys.
 - **Merge meeting notes** — `Burnish: Merge & dedupe meeting notes` (current note, or pick files).
 - **History** — `Burnish: Version history for current note` to roll back.
+
+## Hotkeys
+
+Every preset **and** every custom prompt is registered as its own Obsidian command, so each can have
+its own hotkey:
+
+1. Open **Settings → Hotkeys**.
+2. Search for **Burnish** (or the action's name, e.g. `Burnish: Tidy`).
+3. Click the **+** next to a command and press your key combination.
+
+Notes:
+
+- Obsidian ships with no default hotkeys for Burnish, so there are no conflicts to clear; you bind
+  only the ones you want.
+- Commands run on the active note's selection (or the whole note if nothing is selected), exactly
+  like triggering from the palette.
+- When you **add or rename a prompt** in Burnish settings, its command updates immediately — the new
+  `Burnish: <name>` entry appears in the Hotkeys list ready to bind. (After **deleting** a prompt,
+  its command disappears from the list on the next Obsidian reload.)
+- Useful ones to bind: `Burnish: Tidy`, `Burnish: Custom instruction…`, and `Burnish: Pick an
+  action…` (the fuzzy picker) for one keystroke to everything.
 
 ## Development
 
