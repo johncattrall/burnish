@@ -30,10 +30,26 @@ test("detects dropped placeholders when the model omits a protected region", () 
 	const text = "before\n\n```\nsecret\n```\n\nafter";
 	const { masked, map } = protect(text);
 	// Simulate the model returning prose but dropping the code placeholder entirely.
-	const mangled = masked.replace(/⁣BURNISH_PROTECT_\d+⁣/g, "");
+	const mangled = masked.replace(/BURNISHPROTECT\d+ENDBURNISH/g, "");
 	const dropped = droppedPlaceholders(mangled, map);
 	assert.equal(dropped.length, 1);
 	assert.ok(dropped[0].includes("secret"));
+});
+
+test("round-trips many regions without token-prefix collisions (1 vs 10+)", () => {
+	// 12 inline-code spans -> placeholders 0..11; restore must not corrupt _1 inside _10/_11.
+	const parts = Array.from({ length: 12 }, (_, i) => `\`code${i}\``);
+	const text = "prose " + parts.join(" and ") + " end";
+	const { masked, map } = protect(text);
+	assert.equal(map.size, 12);
+	assert.ok(!masked.includes("code0"));
+	assert.equal(restore(masked, map), text);
+});
+
+test("placeholders are plain ASCII (survive model round-trips)", () => {
+	const { masked } = protect("see `x` here");
+	// No invisible/zero-width characters in the emitted placeholder.
+	assert.ok(/^[\x20-\x7E]*$/.test(masked), "masked text should be printable ASCII");
 });
 
 test("does not mask plain prose", () => {

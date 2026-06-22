@@ -16,8 +16,14 @@ export interface ProtectResult {
 }
 
 // Order matters: frontmatter first (anchored to start), then fenced code, then math, then embeds.
-const PLACEHOLDER_PREFIX = "⁣BURNISH_PROTECT_";
-const PLACEHOLDER_SUFFIX = "⁣";
+//
+// The placeholder is plain uppercase ASCII with a distinct terminator. Models echo opaque
+// alphanumeric tokens reliably; earlier we wrapped tokens in an invisible Unicode separator
+// (U+2063), which models routinely strip, causing spurious "region dropped" warnings. The
+// terminator ("ENDBURNISH") stops token 1 from matching inside token 10 during restore.
+const PLACEHOLDER_PREFIX = "BURNISHPROTECT";
+const PLACEHOLDER_SUFFIX = "ENDBURNISH";
+export const PLACEHOLDER_RE = /BURNISHPROTECT\d+ENDBURNISH/g;
 
 function placeholder(n: number): string {
 	return `${PLACEHOLDER_PREFIX}${n}${PLACEHOLDER_SUFFIX}`;

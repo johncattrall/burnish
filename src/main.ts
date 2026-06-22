@@ -262,7 +262,7 @@ export default class BurnishPlugin extends Plugin {
 				const dropped = droppedPlaceholders(raw, built.protectMap);
 				if (dropped.length) {
 					warnings.push(
-						`${dropped.length} protected region(s) (code/math/embed) were not returned by the model and have been restored.`,
+						`${dropped.length} protected region(s) (code/math/embed) were not returned by the model, so they are missing from the proposal below. Reject the affected change (or re-run) if you need to keep them.`,
 					);
 				}
 				return restored;
