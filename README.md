@@ -142,6 +142,12 @@ npm test         # unit tests (diff, protect, variables, chunk, history, generat
 The plugin frontend is open source (MIT). The hosted Burnish Plus proxy, if/when shipped, is a
 separate backend.
 
+## Support
+
+Burnish is free and will stay free with your own API key. If it saves you time and you would like
+to say thanks, you can [buy me a coffee](https://buymeacoffee.com/johncattrall). It is entirely
+optional and does not unlock anything.
+
 ## License
 
 [MIT](LICENSE) © John Cattrall
