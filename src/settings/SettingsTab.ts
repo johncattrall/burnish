@@ -183,16 +183,6 @@ export class BurnishSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(c)
-			.setName("Stream responses")
-			.setDesc("Stream output as it arrives. Falls back to a single response if streaming fails.")
-			.addToggle((t) =>
-				t.setValue(this.s.streaming).onChange(async (v) => {
-					this.s.streaming = v;
-					await this.save();
-				}),
-			);
-
-		new Setting(c)
 			.setName("New-note folder")
 			.setDesc("Where merged / generated notes are created. Blank = vault root.")
 			.addText((t) =>

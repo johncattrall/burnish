@@ -1,6 +1,6 @@
 import type { CompletionRequest, Provider } from "./Provider";
 import { ProviderError } from "./Provider";
-import { requestJson, streamSSE } from "./http";
+import { requestJson } from "./http";
 
 const API_VERSION = "2023-06-01";
 
@@ -8,10 +8,9 @@ export interface AnthropicConfig {
 	apiKey: string;
 	model: string;
 	baseUrl?: string;
-	streaming?: boolean;
 }
 
-/** Anthropic Messages API provider. */
+/** Anthropic Messages API provider (buffered via requestUrl). */
 export class AnthropicProvider implements Provider {
 	readonly id = "anthropic";
 
@@ -33,34 +32,8 @@ export class AnthropicProvider implements Provider {
 			temperature: req.temperature ?? 0.3,
 			system: req.system,
 			messages: [{ role: "user", content: req.user }],
-			stream: this.cfg.streaming !== false,
 		};
 
-		if (this.cfg.streaming === false) {
-			yield* this.buffered(url, headers, body);
-			return;
-		}
-
-		try {
-			for await (const data of streamSSE({ url, headers, body, signal: req.signal })) {
-				if (data === "[DONE]") break;
-				const evt = safeJson<AnthropicEvent>(data);
-				if (!evt) continue;
-				if (evt.type === "content_block_delta" && evt.delta?.type === "text_delta") {
-					yield evt.delta.text ?? "";
-				} else if (evt.type === "error") {
-					throw new ProviderError(evt.error?.message ?? "Anthropic stream error");
-				}
-			}
-		} catch (e) {
-			if (isAbort(e)) return;
-			if (e instanceof ProviderError && e.status) throw e;
-			// Network/CORS failure: fall back to buffered requestUrl.
-			yield* this.buffered(url, headers, { ...body, stream: false });
-		}
-	}
-
-	private async *buffered(url: string, headers: Record<string, string>, body: unknown) {
 		const json = (await requestJson({ url, headers, body })) as {
 			content?: Array<{ type: string; text?: string }>;
 		};
@@ -70,22 +43,4 @@ export class AnthropicProvider implements Provider {
 			.join("");
 		yield text;
 	}
-}
-
-interface AnthropicEvent {
-	type?: string;
-	delta?: { type?: string; text?: string };
-	error?: { message?: string };
-}
-
-function safeJson<T>(s: string): T | null {
-	try {
-		return JSON.parse(s) as T;
-	} catch {
-		return null;
-	}
-}
-
-function isAbort(e: unknown): boolean {
-	return e instanceof Error && (e.name === "AbortError" || e.message.includes("aborted"));
 }

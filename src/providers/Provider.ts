@@ -19,8 +19,9 @@ export interface Provider {
 	/** Human-readable id, e.g. "anthropic". */
 	readonly id: string;
 	/**
-	 * Streams text chunks of the model response. Implementations may yield once
-	 * if streaming is unavailable. Throws on auth/network/quota errors.
+	 * Yields the model response as text. Current implementations are buffered and yield a single
+	 * chunk; the iterable shape leaves room for future incremental output. Throws on
+	 * auth/network/quota errors.
 	 */
 	complete(req: CompletionRequest): AsyncIterable<string>;
 }
@@ -36,7 +37,7 @@ export class ProviderError extends Error {
 	}
 }
 
-/** Collects a stream into a single string (used by tests and non-streaming callers). */
+/** Collects an async-iterable of chunks into a single string. */
 export async function collect(stream: AsyncIterable<string>): Promise<string> {
 	let out = "";
 	for await (const chunk of stream) out += chunk;

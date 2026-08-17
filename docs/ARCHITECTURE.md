@@ -8,11 +8,11 @@ user configures. An optional hosted "Burnish Plus" proxy is a separate, out-of-r
 
 ## Layers
 
-- **`providers/`** - provider abstraction. `Provider.complete()` returns `AsyncIterable<string>`.
-  `AnthropicProvider`, `OpenAIProvider` (any OpenAI-compatible base URL) and `HostedProvider`
-  implement it. `http.ts` streams Server-Sent Events via `fetch`, falling back to Obsidian's
-  `requestUrl` (buffered) when streaming fails (e.g. mobile/CORS). `factory.ts` builds the active
-  provider from settings.
+- **`providers/`** - provider abstraction. `Provider.complete()` returns `AsyncIterable<string>`
+  (a single buffered chunk). `AnthropicProvider`, `OpenAIProvider` (any OpenAI-compatible base URL)
+  and `HostedProvider` implement it. `http.ts` sends the request via Obsidian's `requestUrl`, which
+  bypasses CORS, works on mobile, and lets Obsidian's tooling analyse the plugin's network calls.
+  `factory.ts` builds the active provider from settings.
 - **`core/`** - pure, Obsidian-free logic (so it is unit-testable):
   - `diff.ts` - line diff grouped into hunks; `reconstruct()` rebuilds the document from the set of
     accepted hunks (all accepted == model output, none == original).
@@ -39,7 +39,7 @@ user configures. An optional hosted "Burnish Plus" proxy is a separate, out-of-r
   a warning in the diff modal.
 - **Non-previewed edits (batch, scheduled) snapshot the original to history first**, so they remain
   reversible - preserving the "never destroy notes silently" principle.
-- **Mobile-safe**: no Node `fs`/`http`; network via `fetch`/`requestUrl` only.
+- **Mobile-safe**: no Node `fs`/`http`; all network via Obsidian's `requestUrl`.
 
 ## Data
 

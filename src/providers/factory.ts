@@ -8,12 +8,12 @@ import { HostedProvider } from "./HostedProvider";
 export function makeProvider(s: BurnishSettings): Provider {
 	switch (s.provider) {
 		case "openai":
-			return new OpenAIProvider({ ...s.openai, streaming: s.streaming });
+			return new OpenAIProvider({ ...s.openai });
 		case "hosted":
-			return new HostedProvider({ ...s.hosted, streaming: s.streaming });
+			return new HostedProvider({ ...s.hosted });
 		case "anthropic":
 		default:
-			return new AnthropicProvider({ ...s.anthropic, streaming: s.streaming });
+			return new AnthropicProvider({ ...s.anthropic });
 	}
 }
 

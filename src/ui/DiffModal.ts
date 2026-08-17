@@ -2,16 +2,16 @@ import { Modal, Notice, Setting, type App } from "obsidian";
 import { computeDiff, reconstruct, type DiffResult } from "../core/diff";
 
 /**
- * The trust feature: stream the model output, then show a per-hunk diff the user accepts or
- * rejects before anything is written. On apply, the caller writes the reconstructed text as a
- * single editor transaction (single undo).
+ * The trust feature: run the model, then show a per-hunk diff the user accepts or rejects before
+ * anything is written. On apply, the caller writes the reconstructed text as a single editor
+ * transaction (single undo).
  */
 
 export interface DiffModalConfig {
 	app: App;
 	title: string;
 	original: string;
-	/** Streams the raw model output. */
+	/** Yields the raw model output (a single chunk for buffered providers). */
 	run: (signal: AbortSignal) => AsyncIterable<string>;
 	/** Transform the full raw output before diffing (e.g. restore protected regions). */
 	transform?: (raw: string) => string;
@@ -29,7 +29,8 @@ export class DiffModal extends Modal {
 	private raw = "";
 	private diff?: DiffResult;
 	private accepted = new Set<number>();
-	private streaming = true;
+	private running = true;
+	private closed = false;
 
 	private bodyEl!: HTMLElement;
 	private footerEl!: HTMLElement;
@@ -51,25 +52,26 @@ export class DiffModal extends Modal {
 		this.bodyEl = this.contentEl.createDiv({ cls: "burnish-diff-body" });
 		this.footerEl = this.contentEl.createDiv({ cls: "burnish-diff-footer" });
 
-		void this.stream();
+		void this.runModel();
 	}
 
 	onClose() {
+		this.closed = true;
 		this.controller.abort();
 		this.contentEl.empty();
 	}
 
-	private async stream() {
+	private async runModel() {
 		this.statusEl.setText("Burnishing…");
-		const live = this.bodyEl.createEl("pre", { cls: "burnish-stream" });
+		this.bodyEl.createEl("pre", { cls: "burnish-stream", text: "Working…" });
+		this.renderFooter();
 		try {
 			for await (const chunk of this.cfg.run(this.controller.signal)) {
 				this.raw += chunk;
-				live.setText(this.raw);
-				live.scrollTop = live.scrollHeight;
 			}
 		} catch (e) {
-			this.streaming = false;
+			if (this.closed) return;
+			this.running = false;
 			this.statusEl.setText("");
 			this.bodyEl.empty();
 			this.bodyEl.createDiv({
@@ -79,7 +81,8 @@ export class DiffModal extends Modal {
 			this.renderFooter();
 			return;
 		}
-		this.streaming = false;
+		if (this.closed) return;
+		this.running = false;
 		this.buildDiff();
 		this.renderWarnings();
 	}
@@ -142,10 +145,10 @@ export class DiffModal extends Modal {
 		this.footerEl.empty();
 		const s = new Setting(this.footerEl);
 
-		if (this.streaming) {
+		if (this.running) {
 			s.addButton((b) =>
-				b.setButtonText("Stop").onClick(() => {
-					this.controller.abort();
+				b.setButtonText("Cancel").onClick(() => {
+					this.close();
 				}),
 			);
 			return;

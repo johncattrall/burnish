@@ -2,22 +2,18 @@ import { requestUrl } from "obsidian";
 import { ProviderError } from "./Provider";
 
 /**
- * HTTP helpers shared by providers.
- *
- * Streaming uses the platform `fetch` (works in Obsidian's Electron renderer on desktop and
- * supports incremental reads + AbortSignal). When `fetch` fails for CORS/network reasons
- * (notably on mobile), callers fall back to {@link requestJson}, which uses Obsidian's
- * `requestUrl` to bypass CORS but cannot stream — the whole body is returned at once.
+ * HTTP helper shared by providers. All network requests go through Obsidian's `requestUrl`, which
+ * bypasses CORS, works on mobile, and lets Obsidian's tooling analyse the plugin's network calls.
+ * Responses are buffered (returned once the request completes); we do not stream.
  */
 
 export interface HttpRequest {
 	url: string;
 	headers: Record<string, string>;
 	body: unknown;
-	signal?: AbortSignal;
 }
 
-/** Buffered POST via Obsidian requestUrl (no streaming, but CORS-safe / mobile-safe). */
+/** POST JSON via Obsidian requestUrl and return the parsed response. Throws {@link ProviderError}. */
 export async function requestJson(req: HttpRequest): Promise<unknown> {
 	const res = await requestUrl({
 		url: req.url,
@@ -30,52 +26,6 @@ export async function requestJson(req: HttpRequest): Promise<unknown> {
 		throw new ProviderError(extractError(res.text) ?? `HTTP ${res.status}`, res.status);
 	}
 	return res.json;
-}
-
-/**
- * Stream a Server-Sent-Events POST via `fetch`. Yields raw `data:` payload strings (one per
- * SSE event); the caller parses provider-specific JSON. Throws {@link ProviderError} on a
- * non-2xx status so callers can fall back to buffered mode.
- */
-export async function* streamSSE(req: HttpRequest): AsyncGenerator<string> {
-	// Obsidian's requestUrl cannot stream a response incrementally, so genuine token streaming
-	// requires fetch. We fall back to requestUrl (buffered) in the providers when this fails.
-	const res = await fetch(req.url, {
-		method: "POST",
-		headers: { "Content-Type": "application/json", ...req.headers },
-		body: JSON.stringify(req.body),
-		signal: req.signal,
-	});
-
-	if (!res.ok) {
-		const text = await res.text().catch(() => "");
-		throw new ProviderError(extractError(text) ?? `HTTP ${res.status}`, res.status);
-	}
-	if (!res.body) throw new ProviderError("No response body for stream");
-
-	const reader = res.body.getReader();
-	const decoder = new TextDecoder();
-	let buffer = "";
-
-	try {
-		for (;;) {
-			const { done, value } = await reader.read();
-			if (done) break;
-			buffer += decoder.decode(value, { stream: true });
-
-			let nl: number;
-			// SSE events are separated by blank lines; data may span multiple `data:` lines.
-			while ((nl = buffer.indexOf("\n")) !== -1) {
-				const line = buffer.slice(0, nl).replace(/\r$/, "");
-				buffer = buffer.slice(nl + 1);
-				if (line.startsWith("data:")) {
-					yield line.slice(5).trimStart();
-				}
-			}
-		}
-	} finally {
-		reader.releaseLock();
-	}
 }
 
 interface ErrorBody {

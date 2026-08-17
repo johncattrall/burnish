@@ -45,7 +45,6 @@ export interface BurnishSettings {
 	temperature: number;
 	/** Warn / offer chunking above this estimated input token count. */
 	costGuardTokens: number;
-	streaming: boolean;
 
 	actions: PromptAction[];
 	folderDefaults: FolderDefault[];
@@ -82,7 +81,6 @@ export const DEFAULT_SETTINGS: BurnishSettings = {
 	defaultGrit: "medium",
 	temperature: 0.3,
 	costGuardTokens: 12000,
-	streaming: true,
 
 	actions: DEFAULT_ACTIONS,
 	folderDefaults: [],
