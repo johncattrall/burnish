@@ -181,12 +181,14 @@ export default class BurnishPlugin extends Plugin {
 	// ---- core run flow ----------------------------------------------------------------
 
 	private buildVarContext(file: TFile | null): VariableContext {
-		const fm = file ? (this.app.metadataCache.getFileCache(file)?.frontmatter ?? {}) : {};
+		const fm: Record<string, unknown> = file
+			? (this.app.metadataCache.getFileCache(file)?.frontmatter ?? {})
+			: {};
 		return {
 			title: file?.basename ?? "Untitled",
 			path: file?.path ?? "",
 			selection: "",
-			frontmatter: fm as Record<string, unknown>,
+			frontmatter: fm,
 			date: isoDate(),
 		};
 	}
