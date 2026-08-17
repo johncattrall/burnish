@@ -1,11 +1,25 @@
-import { App, PluginSettingTab, Setting } from "obsidian";
+import {
+	App,
+	PluginSettingTab,
+	Setting,
+	type SettingDefinition,
+	type SettingDefinitionItem,
+} from "obsidian";
 import type BurnishPlugin from "../main";
 import type { Grit, PromptAction, ProviderId } from "./settings";
 import { countSnapshots, clearHistory } from "../core/history";
 import { confirm } from "../ui/ConfirmModal";
 
-/** Settings UI: provider + keys, defaults, prompt library, folder defaults, merge, hosted tier. */
+/**
+ * Settings UI. Implemented with Obsidian 1.13's declarative settings API
+ * (`getSettingDefinitions`): section groups plus `render` rows that build the actual controls.
+ * Structural changes (provider switch, add/delete/edit prompt, folder rules) call `this.update()`
+ * to re-run `getSettingDefinitions`.
+ */
 export class BurnishSettingTab extends PluginSettingTab {
+	/** When set, the tab shows the edit sub-view for this action instead of the main list. */
+	private editingActionId: string | null = null;
+
 	constructor(
 		app: App,
 		private plugin: BurnishPlugin,
@@ -22,474 +36,536 @@ export class BurnishSettingTab extends PluginSettingTab {
 		if (refreshCommands) this.plugin.refreshCommands();
 	}
 
-	display(): void {
-		const { containerEl } = this;
-		containerEl.empty();
+	getSettingDefinitions(): SettingDefinitionItem[] {
+		if (this.editingActionId) {
+			const action = this.s.actions.find((a) => a.id === this.editingActionId);
+			if (action) return this.editActionDefs(action);
+			this.editingActionId = null;
+		}
+		return [
+			this.providerGroup(),
+			this.defaultsGroup(),
+			this.promptLibraryGroup(),
+			this.folderDefaultsGroup(),
+			this.mergeGroup(),
+			this.historyGroup(),
+			this.scheduleGroup(),
+		];
+	}
 
-		this.providerSection(containerEl);
-		this.defaultsSection(containerEl);
-		this.promptLibrarySection(containerEl);
-		this.folderDefaultsSection(containerEl);
-		this.mergeSection(containerEl);
-		this.historySection(containerEl);
-		this.scheduleSection(containerEl);
+	// ---- small builders ---------------------------------------------------------------
+
+	/** A row that builds its controls imperatively via the given callback. */
+	private row(name: string, desc: string | undefined, build: (s: Setting) => void): SettingDefinition {
+		return { name, desc, render: (s: Setting) => build(s) };
+	}
+
+	/** A description-only row (no control), excluded from settings search. */
+	private note(desc: string): SettingDefinition {
+		return { name: "", desc, searchable: false };
+	}
+
+	private group(heading: string, items: SettingDefinition[]): SettingDefinitionItem {
+		return { type: "group", heading, items };
 	}
 
 	// ---- provider ---------------------------------------------------------------------
 
-	private providerSection(c: HTMLElement) {
-		new Setting(c).setName("Provider").setHeading();
+	private providerGroup(): SettingDefinitionItem {
+		const items: SettingDefinition[] = [];
 
-		new Setting(c)
-			.setName("Active provider")
-			.setDesc("Anthropic, any OpenAI-compatible endpoint, or Burnish Plus (hosted).")
-			.addDropdown((d) =>
-				d
-					.addOptions({
-					anthropic: "Anthropic",
-					openai: "OpenAI-compatible",
-					hosted: "Burnish Plus (coming soon)",
-				})
-					.setValue(this.s.provider)
-					.onChange(async (v) => {
-						this.s.provider = v as ProviderId;
-						await this.save();
-						this.display();
-					}),
-			);
+		items.push(
+			this.row(
+				"Active provider",
+				"Anthropic, any OpenAI-compatible endpoint, or Burnish Plus (hosted).",
+				(s) =>
+					s.addDropdown((d) =>
+						d
+							.addOptions({
+								anthropic: "Anthropic",
+								openai: "OpenAI-compatible",
+								hosted: "Burnish Plus (coming soon)",
+							})
+							.setValue(this.s.provider)
+							.onChange(async (v) => {
+								this.s.provider = v as ProviderId;
+								await this.save();
+								this.update();
+							}),
+					),
+			),
+		);
 
-		new Setting(c).setDesc(
-			"⚠️ Obsidian stores plugin settings unencrypted in your vault. Treat API keys accordingly.",
+		items.push(
+			this.note("Obsidian stores plugin settings unencrypted in your vault. Treat API keys accordingly."),
 		);
 
 		if (this.s.provider === "anthropic") {
-			new Setting(c).setName("Anthropic API key").addText((t) =>
-				t
-					.setPlaceholder("sk-ant-…")
-					.setValue(this.s.anthropic.apiKey)
-					.onChange(async (v) => {
-						this.s.anthropic.apiKey = v.trim();
-						await this.save();
-					}),
+			items.push(
+				this.row("Anthropic API key", undefined, (s) =>
+					s.addText((t) =>
+						t
+							.setPlaceholder("sk-ant-…")
+							.setValue(this.s.anthropic.apiKey)
+							.onChange(async (v) => {
+								this.s.anthropic.apiKey = v.trim();
+								await this.save();
+							}),
+					),
+				),
 			);
-			new Setting(c).setName("Model").addText((t) =>
-				t
-					.setValue(this.s.anthropic.model)
-					.onChange(async (v) => {
-						this.s.anthropic.model = v.trim();
-						await this.save();
-					}),
+			items.push(
+				this.row("Model", undefined, (s) =>
+					s.addText((t) =>
+						t.setValue(this.s.anthropic.model).onChange(async (v) => {
+							this.s.anthropic.model = v.trim();
+							await this.save();
+						}),
+					),
+				),
 			);
 		} else if (this.s.provider === "openai") {
-			new Setting(c)
-				.setName("Base URL")
-				.setDesc("OpenAI, OpenRouter, Groq, Ollama, LM Studio, vLLM…")
-				.addText((t) =>
-					t
-						.setValue(this.s.openai.baseUrl)
-						.onChange(async (v) => {
+			items.push(
+				this.row("Base URL", "OpenAI, OpenRouter, Groq, Ollama, LM Studio, vLLM…", (s) =>
+					s.addText((t) =>
+						t.setValue(this.s.openai.baseUrl).onChange(async (v) => {
 							this.s.openai.baseUrl = v.trim();
 							await this.save();
 						}),
-				);
-			new Setting(c).setName("API key").setDesc("Leave blank for local servers that need none.").addText((t) =>
-				t
-					.setValue(this.s.openai.apiKey)
-					.onChange(async (v) => {
-						this.s.openai.apiKey = v.trim();
-						await this.save();
-					}),
+					),
+				),
 			);
-			new Setting(c).setName("Model").addText((t) =>
-				t
-					.setValue(this.s.openai.model)
-					.onChange(async (v) => {
-						this.s.openai.model = v.trim();
-						await this.save();
-					}),
-			);
-		} else {
-			const notice = new Setting(c)
-				.setName("Burnish Plus is coming soon")
-				.setDesc(
-					"The hosted endpoint is not live yet. For now, use the Anthropic or OpenAI-compatible provider with your own key. The fields below are kept for when Plus launches.",
-				);
-			notice.settingEl.addClass("burnish-warning");
-
-			new Setting(c)
-				.setName("Burnish Plus license key")
-				.setDesc("Paste your license key; no LLM API key needed. We proxy to a managed model.")
-				.addText((t) =>
-					t
-						.setPlaceholder("BURNISH-…")
-						.setValue(this.s.hosted.licenseKey)
-						.onChange(async (v) => {
-							this.s.hosted.licenseKey = v.trim();
+			items.push(
+				this.row("API key", "Leave blank for local servers that need none.", (s) =>
+					s.addText((t) =>
+						t.setValue(this.s.openai.apiKey).onChange(async (v) => {
+							this.s.openai.apiKey = v.trim();
 							await this.save();
 						}),
-				);
-			new Setting(c).setName("Endpoint").addText((t) =>
-				t
-					.setValue(this.s.hosted.baseUrl)
-					.onChange(async (v) => {
-						this.s.hosted.baseUrl = v.trim();
-						await this.save();
-					}),
+					),
+				),
+			);
+			items.push(
+				this.row("Model", undefined, (s) =>
+					s.addText((t) =>
+						t.setValue(this.s.openai.model).onChange(async (v) => {
+							this.s.openai.model = v.trim();
+							await this.save();
+						}),
+					),
+				),
+			);
+		} else {
+			items.push(
+				this.row(
+					"Burnish Plus is coming soon",
+					"The hosted endpoint is not live yet. For now, use the Anthropic or OpenAI-compatible provider with your own key. The fields below are kept for when Plus launches.",
+					(s) => s.settingEl.addClass("burnish-warning"),
+				),
+			);
+			items.push(
+				this.row(
+					"Burnish Plus license key",
+					"Paste your license key; no LLM API key needed. We proxy to a managed model.",
+					(s) =>
+						s.addText((t) =>
+							t
+								.setPlaceholder("BURNISH-…")
+								.setValue(this.s.hosted.licenseKey)
+								.onChange(async (v) => {
+									this.s.hosted.licenseKey = v.trim();
+									await this.save();
+								}),
+						),
+				),
+			);
+			items.push(
+				this.row("Endpoint", undefined, (s) =>
+					s.addText((t) =>
+						t.setValue(this.s.hosted.baseUrl).onChange(async (v) => {
+							this.s.hosted.baseUrl = v.trim();
+							await this.save();
+						}),
+					),
+				),
 			);
 		}
+
+		return this.group("Provider", items);
 	}
 
 	// ---- defaults ---------------------------------------------------------------------
 
-	private defaultsSection(c: HTMLElement) {
-		new Setting(c).setName("Defaults").setHeading();
-
-		new Setting(c)
-			.setName("Grit level")
-			.setDesc("How aggressively actions rewrite. Light buff → deep polish.")
-			.addDropdown((d) =>
-				d
-					.addOptions({ light: "Light", medium: "Medium", deep: "Deep" })
-					.setValue(this.s.defaultGrit)
-					.onChange(async (v) => {
-						this.s.defaultGrit = v as Grit;
-						await this.save();
-					}),
-			);
-
-		new Setting(c).setName("Temperature").addSlider((sl) =>
-			sl
-				.setLimits(0, 1, 0.1)
-				.setValue(this.s.temperature)
-				.onChange(async (v) => {
-					this.s.temperature = v;
-					await this.save();
-				}),
-		);
-
-		new Setting(c)
-			.setName("Cost guard (input tokens)")
-			.setDesc("Warn before sending notes larger than this estimate.")
-			.addText((t) =>
-				t
-					.setValue(String(this.s.costGuardTokens))
-					.onChange(async (v) => {
+	private defaultsGroup(): SettingDefinitionItem {
+		return this.group("Defaults", [
+			this.row("Grit level", "How aggressively actions rewrite. Light buff to deep polish.", (s) =>
+				s.addDropdown((d) =>
+					d
+						.addOptions({ light: "Light", medium: "Medium", deep: "Deep" })
+						.setValue(this.s.defaultGrit)
+						.onChange(async (v) => {
+							this.s.defaultGrit = v as Grit;
+							await this.save();
+						}),
+				),
+			),
+			this.row("Temperature", undefined, (s) =>
+				s.addSlider((sl) =>
+					sl
+						.setLimits(0, 1, 0.1)
+						.setValue(this.s.temperature)
+						.onChange(async (v) => {
+							this.s.temperature = v;
+							await this.save();
+						}),
+				),
+			),
+			this.row("Cost guard (input tokens)", "Warn before sending notes larger than this estimate.", (s) =>
+				s.addText((t) =>
+					t.setValue(String(this.s.costGuardTokens)).onChange(async (v) => {
 						const n = parseInt(v, 10);
 						if (!Number.isNaN(n) && n > 0) {
 							this.s.costGuardTokens = n;
 							await this.save();
 						}
 					}),
-			);
-
-		new Setting(c)
-			.setName("New-note folder")
-			.setDesc("Where merged / generated notes are created. Blank = vault root.")
-			.addText((t) =>
-				t
-					.setPlaceholder("e.g. Merged")
-					.setValue(this.s.newNoteFolder)
-					.onChange(async (v) => {
-						this.s.newNoteFolder = v.trim();
-						await this.save();
-					}),
-			);
+				),
+			),
+			this.row("New-note folder", "Where merged / generated notes are created. Blank = vault root.", (s) =>
+				s.addText((t) =>
+					t
+						.setPlaceholder("e.g. Merged")
+						.setValue(this.s.newNoteFolder)
+						.onChange(async (v) => {
+							this.s.newNoteFolder = v.trim();
+							await this.save();
+						}),
+				),
+			),
+		]);
 	}
 
 	// ---- prompt library ---------------------------------------------------------------
 
-	private promptLibrarySection(c: HTMLElement) {
-		new Setting(c)
-			.setName("Prompt library")
-			.setHeading()
-			.setDesc("Presets and your own prompts share the same mechanism. Each becomes a command.");
+	private promptLibraryGroup(): SettingDefinitionItem {
+		const items: SettingDefinition[] = [
+			this.note("Presets and your own prompts share the same mechanism. Each becomes a command."),
+		];
 
 		for (const action of this.s.actions) {
-			const row = new Setting(c)
-				.setName(action.name)
-				.setDesc(action.builtin ? "Built-in preset" : "Custom prompt");
-
-			row.addToggle((t) =>
-				t
-					.setValue(action.enabled)
-					.setTooltip("Enabled")
-					.onChange(async (v) => {
-						action.enabled = v;
-						await this.save(true);
-					}),
+			items.push(
+				this.row(action.name, action.builtin ? "Built-in preset" : "Custom prompt", (s) => {
+					s.addToggle((t) =>
+						t
+							.setValue(action.enabled)
+							.setTooltip("Enabled")
+							.onChange(async (v) => {
+								action.enabled = v;
+								await this.save(true);
+							}),
+					);
+					s.addExtraButton((b) =>
+						b
+							.setIcon("pencil")
+							.setTooltip("Edit")
+							.onClick(() => {
+								this.editingActionId = action.id;
+								this.update();
+							}),
+					);
+					if (!action.builtin) {
+						s.addExtraButton((b) =>
+							b
+								.setIcon("trash")
+								.setTooltip("Delete")
+								.onClick(async () => {
+									this.s.actions = this.s.actions.filter((a) => a.id !== action.id);
+									await this.save(true);
+									this.update();
+								}),
+						);
+					}
+				}),
 			);
-			row.addExtraButton((b) =>
-				b
-					.setIcon("pencil")
-					.setTooltip("Edit")
-					.onClick(() => this.editAction(action)),
-			);
-			if (!action.builtin) {
-				row.addExtraButton((b) =>
-					b
-						.setIcon("trash")
-						.setTooltip("Delete")
-						.onClick(async () => {
-							this.s.actions = this.s.actions.filter((a) => a.id !== action.id);
-							await this.save(true);
-							this.display();
-						}),
-				);
-			}
 		}
 
-		new Setting(c).addButton((b) =>
-			b
-				.setButtonText("Add prompt")
-				.setCta()
-				.onClick(async () => {
-					const id = `custom-${Date.now().toString(36)}`;
-					const action: PromptAction = {
-						id,
-						name: "New prompt",
-						prompt: "Instruction…",
-						output: "replace",
-						enabled: true,
-					};
-					this.s.actions.push(action);
-					await this.save(true);
-					this.editAction(action);
-				}),
+		items.push(
+			this.row("Add a prompt", undefined, (s) =>
+				s.addButton((b) =>
+					b
+						.setButtonText("Add prompt")
+						.setCta()
+						.onClick(async () => {
+							const id = `custom-${Date.now().toString(36)}`;
+							const action: PromptAction = {
+								id,
+								name: "New prompt",
+								prompt: "Instruction…",
+								output: "replace",
+								enabled: true,
+							};
+							this.s.actions.push(action);
+							await this.save(true);
+							this.editingActionId = id;
+							this.update();
+						}),
+				),
+			),
 		);
+
+		return this.group("Prompt library", items);
 	}
 
-	/** Inline expand of an action's editable fields. */
-	private editAction(action: PromptAction) {
-		const { containerEl } = this;
-		containerEl.empty();
-		new Setting(containerEl).setName(`Edit: ${action.name}`).setHeading();
-
-		new Setting(containerEl).setName("Name").addText((t) =>
-			t.setValue(action.name).onChange(async (v) => {
-				action.name = v;
-				await this.save(true);
-			}),
-		);
-
-		new Setting(containerEl)
-			.setName("Prompt")
-			.setDesc("Variables: {{title}} {{date}} {{selection}} {{path}} {{frontmatter.key}} {{grit}}")
-			.addTextArea((t) => {
-				t.setValue(action.prompt).onChange(async (v) => {
-					action.prompt = v;
-					await this.save();
-				});
-				t.inputEl.rows = 8;
-				t.inputEl.addClass("burnish-prompt-edit");
-			});
-
-		new Setting(containerEl).setName("Output").addDropdown((d) =>
-			d
-				.addOptions({ replace: "Replace target", insert: "Insert at cursor", newNote: "New note" })
-				.setValue(action.output)
-				.onChange(async (v) => {
-					action.output = v as PromptAction["output"];
-					await this.save();
-				}),
-		);
-
-		new Setting(containerEl).setName("Model override").setDesc("Blank = provider default.").addText((t) =>
-			t
-				.setPlaceholder("e.g. claude-haiku-4-5")
-				.setValue(action.model ?? "")
-				.onChange(async (v) => {
-					action.model = v.trim() || undefined;
-					await this.save();
-				}),
-		);
-
-		new Setting(containerEl).setName("Default grit").addDropdown((d) =>
-			d
-				.addOptions({ "": "Use global", light: "Light", medium: "Medium", deep: "Deep" })
-				.setValue(action.grit ?? "")
-				.onChange(async (v) => {
-					action.grit = (v || undefined) as Grit | undefined;
-					await this.save();
-				}),
-		);
-
-		new Setting(containerEl).addButton((b) =>
-			b
-				.setButtonText("Done")
-				.setCta()
-				.onClick(() => this.display()),
-		);
+	/** The edit sub-view for one action, returned in place of the main list. */
+	private editActionDefs(action: PromptAction): SettingDefinitionItem[] {
+		return [
+			this.group(`Edit: ${action.name}`, [
+				this.row("Name", undefined, (s) =>
+					s.addText((t) =>
+						t.setValue(action.name).onChange(async (v) => {
+							action.name = v;
+							await this.save(true);
+						}),
+					),
+				),
+				this.row(
+					"Prompt",
+					"Variables: {{title}} {{date}} {{selection}} {{path}} {{frontmatter.key}} {{grit}}",
+					(s) =>
+						s.addTextArea((t) => {
+							t.setValue(action.prompt).onChange(async (v) => {
+								action.prompt = v;
+								await this.save();
+							});
+							t.inputEl.rows = 8;
+							t.inputEl.addClass("burnish-prompt-edit");
+						}),
+				),
+				this.row("Output", undefined, (s) =>
+					s.addDropdown((d) =>
+						d
+							.addOptions({ replace: "Replace target", insert: "Insert at cursor", newNote: "New note" })
+							.setValue(action.output)
+							.onChange(async (v) => {
+								action.output = v as PromptAction["output"];
+								await this.save();
+							}),
+					),
+				),
+				this.row("Model override", "Blank = provider default.", (s) =>
+					s.addText((t) =>
+						t
+							.setPlaceholder("e.g. claude-haiku-4-5")
+							.setValue(action.model ?? "")
+							.onChange(async (v) => {
+								action.model = v.trim() || undefined;
+								await this.save();
+							}),
+					),
+				),
+				this.row("Default grit", undefined, (s) =>
+					s.addDropdown((d) =>
+						d
+							.addOptions({ "": "Use global", light: "Light", medium: "Medium", deep: "Deep" })
+							.setValue(action.grit ?? "")
+							.onChange(async (v) => {
+								action.grit = (v || undefined) as Grit | undefined;
+								await this.save();
+							}),
+					),
+				),
+				this.row("Done", undefined, (s) =>
+					s.addButton((b) =>
+						b
+							.setButtonText("Done")
+							.setCta()
+							.onClick(() => {
+								this.editingActionId = null;
+								this.update();
+							}),
+					),
+				),
+			]),
+		];
 	}
 
 	// ---- folder defaults --------------------------------------------------------------
 
-	private folderDefaultsSection(c: HTMLElement) {
-		new Setting(c)
-			.setName("Per-folder defaults")
-			.setHeading()
-			.setDesc("Match file paths by glob (e.g. Meetings/, Journal/*). First match wins.");
+	private folderDefaultsGroup(): SettingDefinitionItem {
+		const items: SettingDefinition[] = [
+			this.note("Match file paths by glob (e.g. Meetings/, Journal/*). First match wins."),
+		];
 
 		this.s.folderDefaults.forEach((fd, i) => {
-			const row = new Setting(c);
-			row.addText((t) =>
-				t
-					.setPlaceholder("glob, e.g. Meetings/")
-					.setValue(fd.glob)
-					.onChange(async (v) => {
-						fd.glob = v.trim();
-						await this.save();
-					}),
-			);
-			row.addDropdown((d) => {
-				d.addOption("", "(no default action)");
-				for (const a of this.s.actions) d.addOption(a.id, a.name);
-				d.setValue(fd.actionId ?? "").onChange(async (v) => {
-					fd.actionId = v || undefined;
-					await this.save();
-				});
-			});
-			row.addText((t) =>
-				t
-					.setPlaceholder("model override")
-					.setValue(fd.model ?? "")
-					.onChange(async (v) => {
-						fd.model = v.trim() || undefined;
-						await this.save();
-					}),
-			);
-			row.addExtraButton((b) =>
-				b
-					.setIcon("trash")
-					.onClick(async () => {
-						this.s.folderDefaults.splice(i, 1);
-						await this.save();
-						this.display();
-					}),
+			items.push(
+				this.row(fd.glob || `Rule ${i + 1}`, undefined, (s) => {
+					s.addText((t) =>
+						t
+							.setPlaceholder("glob, e.g. Meetings/")
+							.setValue(fd.glob)
+							.onChange(async (v) => {
+								fd.glob = v.trim();
+								await this.save();
+							}),
+					);
+					s.addDropdown((d) => {
+						d.addOption("", "(no default action)");
+						for (const a of this.s.actions) d.addOption(a.id, a.name);
+						d.setValue(fd.actionId ?? "").onChange(async (v) => {
+							fd.actionId = v || undefined;
+							await this.save();
+						});
+					});
+					s.addText((t) =>
+						t
+							.setPlaceholder("model override")
+							.setValue(fd.model ?? "")
+							.onChange(async (v) => {
+								fd.model = v.trim() || undefined;
+								await this.save();
+							}),
+					);
+					s.addExtraButton((b) =>
+						b
+							.setIcon("trash")
+							.setTooltip("Delete rule")
+							.onClick(async () => {
+								this.s.folderDefaults.splice(i, 1);
+								await this.save();
+								this.update();
+							}),
+					);
+				}),
 			);
 		});
 
-		new Setting(c).addButton((b) =>
-			b.setButtonText("Add folder default").onClick(async () => {
-				this.s.folderDefaults.push({ glob: "" });
-				await this.save();
-				this.display();
-			}),
+		items.push(
+			this.row("Add rule", undefined, (s) =>
+				s.addButton((b) =>
+					b.setButtonText("Add folder default").onClick(async () => {
+						this.s.folderDefaults.push({ glob: "" });
+						await this.save();
+						this.update();
+					}),
+				),
+			),
 		);
+
+		return this.group("Per-folder defaults", items);
 	}
 
 	// ---- merge ------------------------------------------------------------------------
 
-	private mergeSection(c: HTMLElement) {
-		new Setting(c).setName("Merge meeting notes").setHeading();
-		new Setting(c)
-			.setName("Keep attribution")
-			.setDesc("Tag differing/conflicting points with who said them, e.g. (Ian).")
-			.addToggle((t) =>
-				t.setValue(this.s.mergeAttribution).onChange(async (v) => {
-					this.s.mergeAttribution = v;
-					await this.save();
-				}),
-			);
+	private mergeGroup(): SettingDefinitionItem {
+		return this.group("Merge meeting notes", [
+			this.row("Keep attribution", "Tag differing/conflicting points with who said them, e.g. (Ian).", (s) =>
+				s.addToggle((t) =>
+					t.setValue(this.s.mergeAttribution).onChange(async (v) => {
+						this.s.mergeAttribution = v;
+						await this.save();
+					}),
+				),
+			),
+		]);
 	}
 
 	// ---- history ----------------------------------------------------------------------
 
-	private historySection(c: HTMLElement) {
-		new Setting(c).setName("History & rollback").setHeading();
-
-		new Setting(c)
-			.setName("Save versions")
-			.setDesc("Snapshot a note before Burnish rewrites it, so edits can be rolled back.")
-			.addToggle((t) =>
-				t.setValue(this.s.history.enabled).onChange(async (v) => {
-					this.s.history.enabled = v;
-					await this.save();
-				}),
-			);
-
-		new Setting(c)
-			.setName("Versions kept per note")
-			.addText((t) =>
-				t
-					.setValue(String(this.s.history.maxPerNote))
-					.onChange(async (v) => {
+	private historyGroup(): SettingDefinitionItem {
+		const total = countSnapshots(this.s.historyStore);
+		return this.group("History & rollback", [
+			this.row(
+				"Save versions",
+				"Snapshot a note before Burnish rewrites it, so edits can be rolled back.",
+				(s) =>
+					s.addToggle((t) =>
+						t.setValue(this.s.history.enabled).onChange(async (v) => {
+							this.s.history.enabled = v;
+							await this.save();
+						}),
+					),
+			),
+			this.row("Versions kept per note", undefined, (s) =>
+				s.addText((t) =>
+					t.setValue(String(this.s.history.maxPerNote)).onChange(async (v) => {
 						const n = parseInt(v, 10);
 						if (!Number.isNaN(n) && n > 0) {
 							this.s.history.maxPerNote = n;
 							await this.save();
 						}
 					}),
-			);
-
-		const total = countSnapshots(this.s.historyStore);
-		new Setting(c)
-			.setName("Stored snapshots")
-			.setDesc(`${total} across all notes.`)
-			.addButton((b) =>
-				b
-					.setButtonText("Clear all history")
-					.setDestructive()
-					.onClick(async () => {
-						const ok = await confirm(this.app, {
-							title: "Clear history",
-							body: "Delete all saved Burnish versions for every note?",
-							cta: "Delete all",
-							destructive: true,
-						});
-						if (!ok) return;
-						clearHistory(this.s.historyStore);
-						await this.save();
-						this.display();
-					}),
-			);
+				),
+			),
+			this.row("Stored snapshots", `${total} across all notes.`, (s) =>
+				s.addButton((b) =>
+					b
+						.setButtonText("Clear all history")
+						.setDestructive()
+						.onClick(async () => {
+							const ok = await confirm(this.app, {
+								title: "Clear history",
+								body: "Delete all saved Burnish versions for every note?",
+								cta: "Delete all",
+								destructive: true,
+							});
+							if (!ok) return;
+							clearHistory(this.s.historyStore);
+							await this.save();
+							this.update();
+						}),
+				),
+			),
+		]);
 	}
 
 	// ---- schedule ---------------------------------------------------------------------
 
-	private scheduleSection(c: HTMLElement) {
-		new Setting(c).setName("Scheduled cleanup").setHeading();
-
-		new Setting(c)
-			.setName("Enable")
-			.setDesc("Run an action across a folder once a day (in place, snapshotted to history).")
-			.addToggle((t) =>
-				t.setValue(this.s.schedule.enabled).onChange(async (v) => {
-					this.s.schedule.enabled = v;
-					await this.save();
-				}),
-			);
-
-		new Setting(c)
-			.setName("Folder glob")
-			.setDesc("e.g. Daily/ or Journal/*")
-			.addText((t) =>
-				t.setValue(this.s.schedule.folderGlob).onChange(async (v) => {
-					this.s.schedule.folderGlob = v.trim();
-					await this.save();
-				}),
-			);
-
-		new Setting(c).setName("Action").addDropdown((d) => {
-			for (const a of this.s.actions) d.addOption(a.id, a.name);
-			d.setValue(this.s.schedule.actionId).onChange(async (v) => {
-				this.s.schedule.actionId = v;
-				await this.save();
-			});
-		});
-
-		new Setting(c)
-			.setName("Run after (24h local time)")
-			.setDesc("Fires once per day, the first time Obsidian is open after this time.")
-			.addText((t) =>
-				t
-					.setPlaceholder("03:00")
-					.setValue(this.s.schedule.time)
-					.onChange(async (v) => {
-						if (/^\d{1,2}:\d{2}$/.test(v.trim())) {
-							this.s.schedule.time = v.trim();
+	private scheduleGroup(): SettingDefinitionItem {
+		return this.group("Scheduled cleanup", [
+			this.row(
+				"Enable",
+				"Run an action across a folder once a day (in place, snapshotted to history).",
+				(s) =>
+					s.addToggle((t) =>
+						t.setValue(this.s.schedule.enabled).onChange(async (v) => {
+							this.s.schedule.enabled = v;
 							await this.save();
-						}
+						}),
+					),
+			),
+			this.row("Folder glob", "e.g. Daily/ or Journal/*", (s) =>
+				s.addText((t) =>
+					t.setValue(this.s.schedule.folderGlob).onChange(async (v) => {
+						this.s.schedule.folderGlob = v.trim();
+						await this.save();
 					}),
-			);
+				),
+			),
+			this.row("Action", undefined, (s) =>
+				s.addDropdown((d) => {
+					for (const a of this.s.actions) d.addOption(a.id, a.name);
+					d.setValue(this.s.schedule.actionId).onChange(async (v) => {
+						this.s.schedule.actionId = v;
+						await this.save();
+					});
+				}),
+			),
+			this.row(
+				"Run after (24h local time)",
+				"Fires once per day, the first time Obsidian is open after this time.",
+				(s) =>
+					s.addText((t) =>
+						t
+							.setPlaceholder("03:00")
+							.setValue(this.s.schedule.time)
+							.onChange(async (v) => {
+								if (/^\d{1,2}:\d{2}$/.test(v.trim())) {
+									this.s.schedule.time = v.trim();
+									await this.save();
+								}
+							}),
+					),
+			),
+		]);
 	}
 }

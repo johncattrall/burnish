@@ -78,7 +78,8 @@ export default class BurnishPlugin extends Plugin {
 	}
 
 	async loadSettings() {
-		this.settings = normalizeSettings((await this.loadData()) as Partial<BurnishSettings> | null);
+		const data: unknown = await this.loadData();
+		this.settings = normalizeSettings(data as Partial<BurnishSettings> | null);
 	}
 
 	async saveSettings() {
