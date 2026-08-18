@@ -31,6 +31,7 @@ export class DiffModal extends Modal {
 	private accepted = new Set<number>();
 	private running = true;
 	private closed = false;
+	private workingTimer: number | null = null;
 
 	private bodyEl!: HTMLElement;
 	private footerEl!: HTMLElement;
@@ -57,19 +58,41 @@ export class DiffModal extends Modal {
 
 	onClose() {
 		this.closed = true;
+		this.stopWorkingIndicator();
 		this.controller.abort();
 		this.contentEl.empty();
 	}
 
+	/** Animated spinner + elapsed-seconds counter while the (buffered) request is in flight. */
+	private startWorkingIndicator() {
+		this.statusEl.setText("");
+		this.bodyEl.empty();
+		const wrap = this.bodyEl.createDiv({ cls: "burnish-working" });
+		wrap.createDiv({ cls: "burnish-spinner" });
+		const label = wrap.createDiv({ cls: "burnish-working-label", text: "Burnishing…" });
+		const start = Date.now();
+		this.workingTimer = window.setInterval(() => {
+			const secs = Math.floor((Date.now() - start) / 1000);
+			label.setText(`Burnishing… ${secs}s`);
+		}, 1000);
+	}
+
+	private stopWorkingIndicator() {
+		if (this.workingTimer !== null) {
+			window.clearInterval(this.workingTimer);
+			this.workingTimer = null;
+		}
+	}
+
 	private async runModel() {
-		this.statusEl.setText("Burnishing…");
-		this.bodyEl.createEl("pre", { cls: "burnish-stream", text: "Working…" });
+		this.startWorkingIndicator();
 		this.renderFooter();
 		try {
 			for await (const chunk of this.cfg.run(this.controller.signal)) {
 				this.raw += chunk;
 			}
 		} catch (e) {
+			this.stopWorkingIndicator();
 			if (this.closed) return;
 			this.running = false;
 			this.statusEl.setText("");
@@ -81,6 +104,7 @@ export class DiffModal extends Modal {
 			this.renderFooter();
 			return;
 		}
+		this.stopWorkingIndicator();
 		if (this.closed) return;
 		this.running = false;
 		this.buildDiff();

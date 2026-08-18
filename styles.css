@@ -39,6 +39,35 @@
 	margin: 0;
 }
 
+.burnish-working {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+	padding: var(--size-4-4);
+	justify-content: center;
+	color: var(--text-muted);
+}
+
+.burnish-spinner {
+	width: 18px;
+	height: 18px;
+	border: 2px solid var(--background-modifier-border);
+	border-top-color: var(--interactive-accent);
+	border-radius: 50%;
+	animation: burnish-spin 0.8s linear infinite;
+	flex: 0 0 auto;
+}
+
+.burnish-working-label {
+	font-size: var(--font-ui-small);
+}
+
+@keyframes burnish-spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
 .burnish-hunks {
 	display: flex;
 	flex-direction: column;
