@@ -1,7 +1,7 @@
 import { requestUrl } from "obsidian";
 
 /**
- * Small client for the Burnish Plus gateway's account endpoints (signup + status). The
+ * Small client for the Burnish Pro gateway's account endpoints (signup + status). The
  * completion path lives in HostedProvider; this is just for the settings UI.
  */
 

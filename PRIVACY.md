@@ -21,7 +21,7 @@ When you configure your own API key or a local model:
 - Burnish operates **no server** in this mode and never receives, stores, or sees your content.
 - Your handling of that data is then governed by **your chosen provider's** privacy policy.
 
-### Burnish Plus (optional, hosted)
+### Burnish Pro (optional, hosted)
 
 If you opt in to the paid hosted tier and paste a Burnish license key:
 
@@ -32,7 +32,7 @@ If you opt in to the paid hosted tier and paste a Burnish license key:
 - We log non-content metadata required to operate the service: your license key identifier,
   timestamps, and token counts (for quota and billing). We do not log note content.
 
-This section applies only if you explicitly enable Burnish Plus. It does nothing unless you paste a
+This section applies only if you explicitly enable Burnish Pro. It does nothing unless you paste a
 license key.
 
 ## Local storage of keys

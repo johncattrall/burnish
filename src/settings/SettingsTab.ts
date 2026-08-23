@@ -89,7 +89,7 @@ export class BurnishSettingTab extends PluginSettingTab {
 			h.resetsAt = acct.resetsAt;
 			h.upgradeUrl = acct.upgradeUrl ?? "";
 			await this.plugin.saveSettings();
-			new Notice("Burnish Plus: signed up. Free credits are ready.");
+			new Notice("Burnish Pro: signed up. Free credits are ready.");
 			this.update();
 		} catch (e) {
 			new Notice(`Burnish: ${e instanceof Error ? e.message : String(e)}`);
@@ -148,16 +148,22 @@ export class BurnishSettingTab extends PluginSettingTab {
 		const items: SettingDefinition[] = [];
 
 		items.push(
+			this.note(
+				"Two ways to use Burnish. Burnish Pro: no API key needed - sign up with your email for free credits, and upgrade for all features. Bring your own key: use your own Anthropic, OpenAI-compatible, or local model - unlimited and free.",
+			),
+		);
+
+		items.push(
 			this.row(
 				"Active provider",
-				"Anthropic, any OpenAI-compatible endpoint, or Burnish Plus (hosted).",
+				"Anthropic, any OpenAI-compatible endpoint, or Burnish Pro.",
 				(s) =>
 					s.addDropdown((d) =>
 						d
 							.addOptions({
 								anthropic: "Anthropic",
 								openai: "OpenAI-compatible",
-								hosted: "Burnish Plus (hosted)",
+								hosted: "Burnish Pro",
 							})
 							.setValue(this.s.provider)
 							.onChange((v) => {
@@ -234,7 +240,7 @@ export class BurnishSettingTab extends PluginSettingTab {
 				// Not signed in: email + Start free.
 				items.push(
 					this.note(
-						"Burnish Plus: no API key needed. Sign up with your email for free credits (Tidy), then upgrade for all features. Your notes are processed transiently and not stored.",
+						"Burnish Pro: no API key needed. Sign up with your email for free credits (Tidy), then upgrade for all features. Your notes are processed transiently and not stored.",
 					),
 				);
 				items.push(
@@ -292,17 +298,6 @@ export class BurnishSettingTab extends PluginSettingTab {
 					),
 				);
 			}
-			// Advanced: gateway URL (rarely changed).
-			items.push(
-				this.row("Gateway URL", "Advanced - the Burnish Plus endpoint.", (s) =>
-					s.addText((t) =>
-						t.setValue(h.baseUrl).onChange((v) => {
-							h.baseUrl = v.trim();
-							void this.save();
-						}),
-					),
-				),
-			);
 		}
 
 		return this.group("Provider", items);

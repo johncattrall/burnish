@@ -8,7 +8,7 @@ export interface HostedConfig {
 }
 
 /**
- * Burnish Plus provider. Posts to the gateway with the user's hosted key (issued at email
+ * Burnish Pro provider. Posts to the gateway with the user's hosted key (issued at email
  * signup). The gateway validates the key, enforces tier limits (feature gate + monthly cap),
  * picks the model, and returns `{ text, creditsRemaining, resetsAt }`. On a tier limit it returns
  * 402 with `feature_locked` or `quota_exceeded`, which we surface as {@link HostedLimitError} so
@@ -51,7 +51,7 @@ export class HostedProvider implements Provider {
 		if (res.status === 402 && (json?.error === "feature_locked" || json?.error === "quota_exceeded")) {
 			const msg =
 				json.error === "feature_locked"
-					? "That action is a Burnish Plus feature. Upgrade to unlock it."
+					? "That action is a Burnish Pro feature. Upgrade to unlock it."
 					: "You've used this month's free Burnish credits. Upgrade for more.";
 			throw new HostedLimitError(json.error, json.upgradeUrl, msg);
 		}

@@ -60,7 +60,7 @@ trigger an action. There is no other network activity. Specifically:
 - **Anthropic** - requests go to `https://api.anthropic.com` (or a base URL you set).
 - **OpenAI-compatible** - requests go to the **base URL you enter** (OpenAI, OpenRouter, Groq, or a
   local server such as Ollama / LM Studio / vLLM). Nothing is sent anywhere else.
-- **Burnish Plus (optional, hosted)** - if you opt in and paste a license key, requests go to the
+- **Burnish Pro (optional, hosted)** - if you opt in and paste a license key, requests go to the
   Burnish proxy, which forwards them to a model provider. See **Privacy** below.
 
 The content sent is the note or selection you run an action on (with code/math/embeds/frontmatter
@@ -73,7 +73,7 @@ masked) plus your instruction. Your API keys are sent only to the provider they 
   the provider you chose**. Burnish operates no server in this mode and never sees your content.
 - API and license keys are stored in this plugin's settings inside your vault (`data.json`).
   **Obsidian does not encrypt plugin settings** - treat the file accordingly.
-- The optional hosted **Burnish Plus** tier processes note content transiently on its server to
+- The optional hosted **Burnish Pro** tier processes note content transiently on its server to
   proxy the model call and does not retain note content. Full details are in
   [PRIVACY.md](PRIVACY.md).
 
@@ -81,7 +81,7 @@ masked) plus your instruction. Your API keys are sent only to the provider they 
 
 - **No payment or account is required.** All features work with your own API key (or a free local
   model).
-- An **optional** paid "Burnish Plus" tier (a hosted endpoint, no key needed) is planned. It is not
+- An **optional** paid "Burnish Pro" tier (a hosted endpoint, no key needed) is planned. It is not
   required for any feature listed above.
 
 ## Install
@@ -139,7 +139,7 @@ npm run build    # typecheck + production bundle
 npm test         # unit tests (diff, protect, variables, chunk, history, generative)
 ```
 
-The plugin frontend is open source (MIT). The hosted Burnish Plus proxy, if/when shipped, is a
+The plugin frontend is open source (MIT). The hosted Burnish Pro proxy, if/when shipped, is a
 separate backend.
 
 ## Support
