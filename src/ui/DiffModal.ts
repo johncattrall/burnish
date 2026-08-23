@@ -1,6 +1,6 @@
 import { Modal, Notice, Setting, type App } from "obsidian";
 import { computeDiff, reconstruct, type DiffResult } from "../core/diff";
-import { HostedLimitError } from "../providers/Provider";
+import { HostedLimitError, ProviderSetupError } from "../providers/Provider";
 
 /**
  * The trust feature: run the model, then show a per-hunk diff the user accepts or rejects before
@@ -99,6 +99,14 @@ export class DiffModal extends Modal {
 			this.statusEl.setText("");
 			this.bodyEl.empty();
 
+			// Provider not set up yet: show a gentle setup prompt, not an error.
+			if (e instanceof ProviderSetupError) {
+				this.bodyEl.createDiv({ cls: "burnish-warning", text: e.message });
+				this.footerEl.empty();
+				new Setting(this.footerEl).addButton((b) => b.setButtonText("Close").onClick(() => this.close()));
+				return;
+			}
+
 			// Hosted tier limit: show a friendly upgrade prompt instead of a raw error.
 			if (e instanceof HostedLimitError) {
 				this.bodyEl.createDiv({ cls: "burnish-warning", text: e.message });
@@ -122,7 +130,7 @@ export class DiffModal extends Modal {
 
 			this.bodyEl.createDiv({
 				cls: "burnish-error",
-				text: `Failed: ${e instanceof Error ? e.message : String(e)}`,
+				text: e instanceof Error ? e.message : String(e),
 			});
 			this.renderFooter();
 			return;

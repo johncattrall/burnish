@@ -1,6 +1,6 @@
 import { Notice, requestUrl } from "obsidian";
 import type { CompletionRequest, Provider } from "./Provider";
-import { HostedLimitError, ProviderError } from "./Provider";
+import { HostedLimitError, ProviderError, ProviderSetupError } from "./Provider";
 
 export interface HostedConfig {
 	baseUrl: string;
@@ -21,7 +21,7 @@ export class HostedProvider implements Provider {
 
 	async *complete(req: CompletionRequest): AsyncIterable<string> {
 		if (!this.cfg.hostedKey) {
-			throw new ProviderError(
+			throw new ProviderSetupError(
 				"Add your email in settings to use Burnish (Free and Pro), or switch to your own API key.",
 			);
 		}

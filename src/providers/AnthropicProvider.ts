@@ -1,5 +1,5 @@
 import type { CompletionRequest, Provider } from "./Provider";
-import { ProviderError } from "./Provider";
+import { ProviderSetupError } from "./Provider";
 import { requestJson } from "./http";
 
 const API_VERSION = "2023-06-01";
@@ -17,7 +17,8 @@ export class AnthropicProvider implements Provider {
 	constructor(private cfg: AnthropicConfig) {}
 
 	async *complete(req: CompletionRequest): AsyncIterable<string> {
-		if (!this.cfg.apiKey) throw new ProviderError("No Anthropic API key set in Burnish settings.");
+		if (!this.cfg.apiKey)
+			throw new ProviderSetupError("Add your Anthropic API key in settings, or switch to Burnish (no key needed).");
 
 		const url = `${this.cfg.baseUrl ?? "https://api.anthropic.com"}/v1/messages`;
 		const headers = {

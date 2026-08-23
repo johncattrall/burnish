@@ -43,6 +43,17 @@ export class ProviderError extends Error {
 }
 
 /**
+ * Thrown when the active provider isn't set up yet (no Burnish email, no API key). This is a
+ * setup prompt, not a failure - the UI renders it gently rather than as an error.
+ */
+export class ProviderSetupError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = "ProviderSetupError";
+	}
+}
+
+/**
  * Thrown by the hosted provider when the gateway declines on tier limits: either the action is
  * Pro-only ("feature_locked") or the monthly free credits are used up ("quota_exceeded"). Carries
  * an upgrade URL so the UI can prompt the user to subscribe.
