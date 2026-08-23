@@ -22,6 +22,9 @@ export class BurnishSettingTab extends PluginSettingTab {
 	/** When set, the tab shows the edit sub-view for this action instead of the main list. */
 	private editingActionId: string | null = null;
 
+	/** Epoch ms of the last automatic hosted-status refresh, to throttle it. */
+	private lastAutoRefreshAt = 0;
+
 	constructor(
 		app: App,
 		private plugin: BurnishPlugin,
@@ -44,6 +47,10 @@ export class BurnishSettingTab extends PluginSettingTab {
 			if (action) return this.editActionDefs(action);
 			this.editingActionId = null;
 		}
+		// Opening the tab renders through here; refresh hosted credits in the background so the
+		// user sees a current count without pressing Refresh. Throttled so the refresh's own
+		// re-render (and rapid re-renders) don't loop or hammer the gateway.
+		this.maybeAutoRefreshHosted();
 		return [
 			this.providerGroup(),
 			this.defaultsGroup(),
@@ -96,7 +103,7 @@ export class BurnishSettingTab extends PluginSettingTab {
 		}
 	}
 
-	private async hostedRefresh(): Promise<void> {
+	private async hostedRefresh(silent = false): Promise<void> {
 		const h = this.s.hosted;
 		if (!h.hostedKey) return;
 		try {
@@ -108,8 +115,18 @@ export class BurnishSettingTab extends PluginSettingTab {
 			await this.plugin.saveSettings();
 			this.update();
 		} catch (e) {
-			new Notice(`Burnish: ${e instanceof Error ? e.message : String(e)}`);
+			// The automatic refresh stays quiet (e.g. offline); manual Refresh still reports.
+			if (!silent) new Notice(`Burnish: ${e instanceof Error ? e.message : String(e)}`);
 		}
+	}
+
+	/** Refresh hosted credits in the background when the tab is shown, at most once per window. */
+	private maybeAutoRefreshHosted(): void {
+		if (this.s.provider !== "hosted" || !this.s.hosted.hostedKey) return;
+		const now = Date.now();
+		if (now - this.lastAutoRefreshAt < 8000) return;
+		this.lastAutoRefreshAt = now;
+		void this.hostedRefresh(true);
 	}
 
 	private async hostedSignOut(): Promise<void> {
