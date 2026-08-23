@@ -1,5 +1,6 @@
 import {
 	App,
+	Notice,
 	PluginSettingTab,
 	Setting,
 	type SettingDefinition,
@@ -9,6 +10,7 @@ import type BurnishPlugin from "../main";
 import type { Grit, PromptAction, ProviderId } from "./settings";
 import { countSnapshots, clearHistory } from "../core/history";
 import { confirm } from "../ui/ConfirmModal";
+import { signup, fetchStatus } from "../providers/hostedClient";
 
 /**
  * Settings UI. Implemented with Obsidian 1.13's declarative settings API
@@ -19,6 +21,9 @@ import { confirm } from "../ui/ConfirmModal";
 export class BurnishSettingTab extends PluginSettingTab {
 	/** When set, the tab shows the edit sub-view for this action instead of the main list. */
 	private editingActionId: string | null = null;
+
+	/** Epoch ms of the last automatic hosted-status refresh, to throttle it. */
+	private lastAutoRefreshAt = 0;
 
 	constructor(
 		app: App,
@@ -42,6 +47,10 @@ export class BurnishSettingTab extends PluginSettingTab {
 			if (action) return this.editActionDefs(action);
 			this.editingActionId = null;
 		}
+		// Opening the tab renders through here; refresh hosted credits in the background so the
+		// user sees a current count without pressing Refresh. Throttled so the refresh's own
+		// re-render (and rapid re-renders) don't loop or hammer the gateway.
+		this.maybeAutoRefreshHosted();
 		return [
 			this.providerGroup(),
 			this.defaultsGroup(),
@@ -73,6 +82,70 @@ export class BurnishSettingTab extends PluginSettingTab {
 		return { type: "group", heading, items };
 	}
 
+	private async hostedSignup(): Promise<void> {
+		const h = this.s.hosted;
+		if (!h.email.trim()) {
+			new Notice("Enter an email first.");
+			return;
+		}
+		try {
+			const acct = await signup(h.baseUrl, h.email.trim());
+			h.hostedKey = acct.hostedKey;
+			h.tier = acct.tier;
+			h.creditsRemaining = acct.creditsRemaining;
+			h.resetsAt = acct.resetsAt;
+			h.upgradeUrl = acct.upgradeUrl ?? "";
+			await this.plugin.saveSettings();
+			new Notice("Burnish Pro: signed up. Free credits are ready.");
+			this.update();
+		} catch (e) {
+			new Notice(`Burnish: ${e instanceof Error ? e.message : String(e)}`);
+		}
+	}
+
+	private async hostedRefresh(silent = false): Promise<void> {
+		const h = this.s.hosted;
+		if (!h.hostedKey) return;
+		try {
+			const st = await fetchStatus(h.baseUrl, h.hostedKey);
+			h.tier = st.tier;
+			h.creditsRemaining = st.creditsRemaining;
+			h.resetsAt = st.resetsAt;
+			if (st.upgradeUrl) h.upgradeUrl = st.upgradeUrl;
+			await this.plugin.saveSettings();
+			this.update();
+		} catch (e) {
+			// The automatic refresh stays quiet (e.g. offline); manual Refresh still reports.
+			if (!silent) new Notice(`Burnish: ${e instanceof Error ? e.message : String(e)}`);
+		}
+	}
+
+	/** Refresh hosted credits in the background when the tab is shown, at most once per window. */
+	private maybeAutoRefreshHosted(): void {
+		if (this.s.provider !== "hosted" || !this.s.hosted.hostedKey) return;
+		const now = Date.now();
+		if (now - this.lastAutoRefreshAt < 8000) return;
+		this.lastAutoRefreshAt = now;
+		void this.hostedRefresh(true);
+	}
+
+	private async hostedSignOut(): Promise<void> {
+		const h = this.s.hosted;
+		h.hostedKey = "";
+		h.tier = "";
+		h.creditsRemaining = null;
+		h.resetsAt = "";
+		h.upgradeUrl = "";
+		await this.plugin.saveSettings();
+		this.update();
+	}
+
+	private openUpgrade(): void {
+		const url = this.s.hosted.upgradeUrl;
+		if (url) window.open(url, "_blank");
+		else new Notice("Upgrade link unavailable - try Refresh.");
+	}
+
 	private async clearAllHistory(): Promise<void> {
 		const ok = await confirm(this.app, {
 			title: "Clear history",
@@ -92,16 +165,22 @@ export class BurnishSettingTab extends PluginSettingTab {
 		const items: SettingDefinition[] = [];
 
 		items.push(
+			this.note(
+				"Two ways to use Burnish. Burnish Pro: no API key needed - sign up with your email for free credits, and upgrade for all features. Bring your own key: use your own Anthropic, OpenAI-compatible, or local model - unlimited and free.",
+			),
+		);
+
+		items.push(
 			this.row(
 				"Active provider",
-				"Anthropic, any OpenAI-compatible endpoint, or Burnish Plus (hosted).",
+				"Burnish, or bring your own key: Anthropic / OpenAI-compatible / local model.",
 				(s) =>
 					s.addDropdown((d) =>
 						d
 							.addOptions({
-								anthropic: "Anthropic",
-								openai: "OpenAI-compatible",
-								hosted: "Burnish Plus (coming soon)",
+								hosted: "Burnish",
+								anthropic: "BYOK Anthropic",
+								openai: "BYOK OpenAI-compatible",
 							})
 							.setValue(this.s.provider)
 							.onChange((v) => {
@@ -173,39 +252,76 @@ export class BurnishSettingTab extends PluginSettingTab {
 				),
 			);
 		} else {
+			const h = this.s.hosted;
+			// What each tier includes. Shown whether or not the user is signed in.
 			items.push(
-				this.row(
-					"Burnish Plus is coming soon",
-					"The hosted endpoint is not live yet. For now, use the Anthropic or OpenAI-compatible provider with your own key. The fields below are kept for when Plus launches.",
-					(s) => s.settingEl.addClass("burnish-warning"),
+				this.note(
+					"Free: Tidy and Format cleanup, 20 actions/month. Plus 3 one-time previews of Pro features so you can try them. " +
+						"Pro ($5/mo or $25/yr): every action - Restructure, Distill, Merge, diagrams, tables, MOC, custom prompts - on stronger models, 500 actions/month.",
 				),
 			);
-			items.push(
-				this.row(
-					"Burnish Plus license key",
-					"Paste your license key; no LLM API key needed. We proxy to a managed model.",
-					(s) =>
+			if (!h.hostedKey) {
+				// Not signed in: email + Start free.
+				items.push(
+					this.note(
+						"Burnish Pro: no API key needed. Sign up with your email to start on the free tier, then upgrade any time. Your notes are processed transiently and not stored.",
+					),
+				);
+				items.push(
+					this.row("Email", undefined, (s) =>
 						s.addText((t) =>
 							t
-								.setPlaceholder("BURNISH-…")
-								.setValue(this.s.hosted.licenseKey)
+								.setPlaceholder("you@example.com")
+								.setValue(h.email)
 								.onChange((v) => {
-									this.s.hosted.licenseKey = v.trim();
+									h.email = v.trim();
 									void this.save();
 								}),
 						),
-				),
-			);
-			items.push(
-				this.row("Endpoint", undefined, (s) =>
-					s.addText((t) =>
-						t.setValue(this.s.hosted.baseUrl).onChange((v) => {
-							this.s.hosted.baseUrl = v.trim();
-							void this.save();
-						}),
 					),
-				),
-			);
+				);
+				items.push(
+					this.row("Start free", undefined, (s) =>
+						s.addButton((b) =>
+							b
+								.setButtonText("Start free")
+								.setCta()
+								.onClick(() => void this.hostedSignup()),
+						),
+					),
+				);
+			} else {
+				// Signed in: show tier + credits, refresh, upgrade, sign out.
+				const credits =
+					h.tier === "pro"
+						? "Pro"
+						: h.creditsRemaining === null
+							? "Free"
+							: `Free · ${h.creditsRemaining} actions left this month`;
+				items.push(
+					this.row(
+						h.email,
+						h.resetsAt ? `${credits} · resets ${h.resetsAt.slice(0, 10)}` : credits,
+						(s) => {
+							s.addButton((b) => b.setButtonText("Refresh").onClick(() => void this.hostedRefresh()));
+							if (h.tier !== "pro") {
+								s.addButton((b) =>
+									b
+										.setButtonText("Upgrade to Pro")
+										.setCta()
+										.onClick(() => this.openUpgrade()),
+								);
+							}
+							s.addExtraButton((b) =>
+								b
+									.setIcon("log-out")
+									.setTooltip("Sign out")
+									.onClick(() => void this.hostedSignOut()),
+							);
+						},
+					),
+				);
+			}
 		}
 
 		return this.group("Provider", items);

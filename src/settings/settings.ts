@@ -39,7 +39,20 @@ export interface BurnishSettings {
 
 	anthropic: { apiKey: string; model: string };
 	openai: { baseUrl: string; apiKey: string; model: string };
-	hosted: { baseUrl: string; licenseKey: string; model: string };
+	/**
+	 * Burnish Pro (hosted). `hostedKey` is issued by the gateway at email signup and sent as a
+	 * Bearer token; the gateway picks the model and enforces tier limits. tier/creditsRemaining/
+	 * resetsAt are cached from the gateway for display only.
+	 */
+	hosted: {
+		baseUrl: string;
+		hostedKey: string;
+		email: string;
+		tier: "free" | "pro" | "";
+		creditsRemaining: number | null;
+		resetsAt: string;
+		upgradeUrl: string;
+	};
 
 	defaultGrit: Grit;
 	temperature: number;
@@ -72,11 +85,19 @@ export interface BurnishSettings {
 }
 
 export const DEFAULT_SETTINGS: BurnishSettings = {
-	provider: "anthropic",
+	provider: "hosted",
 
 	anthropic: { apiKey: "", model: "claude-sonnet-4-6" },
 	openai: { baseUrl: "https://api.openai.com/v1", apiKey: "", model: "gpt-4o-mini" },
-	hosted: { baseUrl: "https://api.burnish.app", licenseKey: "", model: "default" },
+	hosted: {
+		baseUrl: "https://burnish-gateway.johncattrall.workers.dev",
+		hostedKey: "",
+		email: "",
+		tier: "",
+		creditsRemaining: null,
+		resetsAt: "",
+		upgradeUrl: "",
+	},
 
 	defaultGrit: "medium",
 	temperature: 0.3,
@@ -115,6 +136,10 @@ export function normalizeSettings(loaded: Partial<BurnishSettings> | null): Burn
 		historyStore: loaded?.historyStore ?? {},
 		schedule: { ...DEFAULT_SETTINGS.schedule, ...(loaded?.schedule ?? {}) },
 	};
+
+	// The gateway URL is not user-configurable; always use the current canonical value. This also
+	// migrates users off any stale baseUrl saved by older versions.
+	s.hosted.baseUrl = DEFAULT_SETTINGS.hosted.baseUrl;
 
 	const have = new Set((s.actions ?? []).map((a) => a.id));
 	if (!s.actions || s.actions.length === 0) {

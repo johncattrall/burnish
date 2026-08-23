@@ -60,8 +60,9 @@ trigger an action. There is no other network activity. Specifically:
 - **Anthropic** - requests go to `https://api.anthropic.com` (or a base URL you set).
 - **OpenAI-compatible** - requests go to the **base URL you enter** (OpenAI, OpenRouter, Groq, or a
   local server such as Ollama / LM Studio / vLLM). Nothing is sent anywhere else.
-- **Burnish Plus (optional, hosted)** - if you opt in and paste a license key, requests go to the
-  Burnish proxy, which forwards them to a model provider. See **Privacy** below.
+- **Burnish (optional, hosted)** - if you sign up with your email, requests go to the Burnish
+  gateway, which forwards them to a model provider using its own key. No API key needed. See
+  **Privacy** below.
 
 The content sent is the note or selection you run an action on (with code/math/embeds/frontmatter
 masked) plus your instruction. Your API keys are sent only to the provider they belong to.
@@ -71,18 +72,36 @@ masked) plus your instruction. Your API keys are sent only to the provider they 
 - **Burnish itself collects no data and contains no telemetry or analytics.**
 - With your **own API key** (the default, free), your note content goes **directly from Obsidian to
   the provider you chose**. Burnish operates no server in this mode and never sees your content.
-- API and license keys are stored in this plugin's settings inside your vault (`data.json`).
-  **Obsidian does not encrypt plugin settings** - treat the file accordingly.
-- The optional hosted **Burnish Plus** tier processes note content transiently on its server to
-  proxy the model call and does not retain note content. Full details are in
+- Your API key (BYOK) or your Burnish account token (issued at email signup) is stored in this
+  plugin's settings inside your vault (`data.json`). **Obsidian does not encrypt plugin settings** -
+  treat the file accordingly.
+- The optional hosted **Burnish** tiers (Free and Pro) process note content transiently on the
+  server to proxy the model call and do not retain note content. Full details are in
   [PRIVACY.md](PRIVACY.md).
 
-## Payment & account
+## Plans
 
-- **No payment or account is required.** All features work with your own API key (or a free local
-  model).
-- An **optional** paid "Burnish Plus" tier (a hosted endpoint, no key needed) is planned. It is not
-  required for any feature listed above.
+Burnish works two ways. **Bring your own key** stays fully free and unlimited - you never need an
+account. **Burnish** (hosted) needs no API key: sign up with your email for the Free tier, and
+upgrade to Pro for every action on stronger models.
+
+| | Bring your own key | Burnish Free | Burnish Pro |
+|---|---|---|---|
+| Setup | Your own API key | Just your email | Just your email |
+| Price | Free (you pay your provider) | Free | $5 / month or $25 / year |
+| Tidy + Format cleanup | Yes | Yes | Yes |
+| All other actions¹ | Yes | 3 one-time previews | Yes |
+| Actions per month | Unlimited | 20 | 500 (fair use) |
+| Model | You choose | Managed | Managed (stronger) |
+
+¹ Restructure, Distill, Expand, Action items, Merge & dedupe, Mermaid diagrams, Table from prose,
+Map of Content, and custom prompts. **Burnish Free** includes **3 lifetime previews** (total, not
+per feature) of these on the Pro models, so you can try them before upgrading.
+
+**No payment or account is required for any feature** - everything is available for free with your
+own API key (or a free local model). The hosted tiers are a convenience for people who would rather
+not manage a key. Payments are handled by [Polar](https://polar.sh) (Merchant of Record); Burnish
+never sees your card details.
 
 ## Install
 
@@ -98,7 +117,10 @@ Once listed: Settings → Community plugins → Browse → search "Burnish" → 
 ## Setup
 
 1. Open Settings → Burnish.
-2. Choose a provider and paste your API key (or set a local base URL).
+2. Choose how to run it:
+   - **Burnish** (default) - enter your email and click Start free. No API key needed.
+   - **Bring your own key** - pick Anthropic or an OpenAI-compatible / local endpoint and paste your
+     key (or set a local base URL).
 3. Open a note and run **Burnish: Tidy** from the command palette, the ✨ ribbon icon, or the
    editor right-click menu. Review the diff and Apply.
 
@@ -139,8 +161,10 @@ npm run build    # typecheck + production bundle
 npm test         # unit tests (diff, protect, variables, chunk, history, generative)
 ```
 
-The plugin frontend is open source (MIT). The hosted Burnish Plus proxy, if/when shipped, is a
-separate backend.
+This plugin is fully open source (MIT) - all the features above run with your own key, and you can
+build it from source yourself. Only the optional hosted gateway that powers the Burnish Free/Pro
+tiers is a separate, closed backend. This is a standard open-core setup: the plugin never depends on
+the hosted service.
 
 ## Support
 
