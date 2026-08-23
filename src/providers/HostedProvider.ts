@@ -1,4 +1,4 @@
-import { requestUrl } from "obsidian";
+import { Notice, requestUrl } from "obsidian";
 import type { CompletionRequest, Provider } from "./Provider";
 import { HostedLimitError, ProviderError } from "./Provider";
 
@@ -46,17 +46,30 @@ export class HostedProvider implements Provider {
 			error?: string;
 			upgradeUrl?: string;
 			message?: string;
+			preview?: boolean;
+			previewsRemaining?: number;
 		} | null;
 
 		if (res.status === 402 && (json?.error === "feature_locked" || json?.error === "quota_exceeded")) {
-			const msg =
+			const fallback =
 				json.error === "feature_locked"
 					? "That action is a Burnish Pro feature. Upgrade to unlock it."
 					: "You've used this month's free Burnish credits. Upgrade for more.";
-			throw new HostedLimitError(json.error, json.upgradeUrl, msg);
+			// Prefer the gateway's message (e.g. "You've used your 3 free previews...").
+			throw new HostedLimitError(json.error, json.upgradeUrl, json.message ?? fallback);
 		}
 		if (res.status < 200 || res.status >= 300) {
 			throw new ProviderError(json?.message ?? json?.error ?? `Hosted error ${res.status}`, res.status);
+		}
+
+		// Free-tier taste of a Pro feature: let the user know how many previews remain.
+		if (json?.preview) {
+			const left = json.previewsRemaining ?? 0;
+			new Notice(
+				left > 0
+					? `Burnish Pro preview (${left} free ${left === 1 ? "preview" : "previews"} left).`
+					: "That was your last free Burnish Pro preview. Upgrade to keep using Pro features.",
+			);
 		}
 
 		yield json?.text ?? "";

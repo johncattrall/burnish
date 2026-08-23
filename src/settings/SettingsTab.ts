@@ -156,14 +156,14 @@ export class BurnishSettingTab extends PluginSettingTab {
 		items.push(
 			this.row(
 				"Active provider",
-				"Anthropic, any OpenAI-compatible endpoint, or Burnish Pro.",
+				"Burnish Pro (hosted, no key), or bring your own key for any Anthropic / OpenAI-compatible / local model.",
 				(s) =>
 					s.addDropdown((d) =>
 						d
 							.addOptions({
-								anthropic: "Anthropic",
-								openai: "OpenAI-compatible",
 								hosted: "Burnish Pro",
+								anthropic: "Bring your own key: Anthropic",
+								openai: "Bring your own key: OpenAI-compatible / local",
 							})
 							.setValue(this.s.provider)
 							.onChange((v) => {
@@ -236,11 +236,18 @@ export class BurnishSettingTab extends PluginSettingTab {
 			);
 		} else {
 			const h = this.s.hosted;
+			// What each tier includes. Shown whether or not the user is signed in.
+			items.push(
+				this.note(
+					"Free: Tidy and Format cleanup, 20 actions/month. Plus 3 one-time previews of Pro features so you can try them. " +
+						"Pro ($5/mo or $25/yr): every action - Restructure, Distill, Merge, diagrams, tables, MOC, custom prompts - on stronger models, 500 actions/month.",
+				),
+			);
 			if (!h.hostedKey) {
 				// Not signed in: email + Start free.
 				items.push(
 					this.note(
-						"Burnish Pro: no API key needed. Sign up with your email for free credits (Tidy), then upgrade for all features. Your notes are processed transiently and not stored.",
+						"Burnish Pro: no API key needed. Sign up with your email to start on the free tier, then upgrade any time. Your notes are processed transiently and not stored.",
 					),
 				);
 				items.push(
