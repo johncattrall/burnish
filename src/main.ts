@@ -15,6 +15,7 @@ import {
 	type PromptAction,
 } from "./settings/settings";
 import { BurnishSettingTab } from "./settings/SettingsTab";
+import { WhatsNewModal } from "./ui/WhatsNewModal";
 import { makeProvider, defaultModel } from "./providers/factory";
 import { buildRequest, splitFrontmatter } from "./core/context";
 import { enabledActions, resolveForPath, globToRegExp, getAction } from "./core/promptLibrary";
@@ -43,6 +44,8 @@ import { replaceRange, insertAtCursor, type TargetRange } from "./util/apply";
 
 export default class BurnishPlugin extends Plugin {
 	settings: BurnishSettings = DEFAULT_SETTINGS;
+	/** True when there was no saved data.json on load (a first-ever install, not an upgrade). */
+	private freshInstall = false;
 
 	async onload() {
 		await this.loadSettings();
@@ -55,6 +58,42 @@ export default class BurnishPlugin extends Plugin {
 		// Scheduled burnish: check shortly after load, then every 10 minutes while open.
 		this.app.workspace.onLayoutReady(() => void this.maybeRunSchedule());
 		this.registerInterval(window.setInterval(() => void this.maybeRunSchedule(), 10 * 60 * 1000));
+
+		// One-time "what's new" notice for users upgrading into a new version.
+		this.app.workspace.onLayoutReady(() => this.maybeShowWhatsNew());
+	}
+
+	/** Show the upgrade notice once per version. Skips fresh installs (they get onboarding, not news). */
+	private maybeShowWhatsNew() {
+		const current = this.manifest.version;
+		if (this.freshInstall) {
+			// New user: no upgrade news, but mark this version so they never see it retroactively.
+			if (this.settings.lastWhatsNewVersion !== current) {
+				this.settings.lastWhatsNewVersion = current;
+				void this.saveSettings();
+			}
+			return;
+		}
+		if (this.settings.lastWhatsNewVersion === current) return;
+		new WhatsNewModal(
+			this.app,
+			() => {
+				this.settings.lastWhatsNewVersion = current;
+				void this.saveSettings();
+			},
+			() => this.openBurnishSettings(),
+		).open();
+	}
+
+	/** Open the plugin's own settings tab (best-effort; falls back to a notice). */
+	private openBurnishSettings() {
+		const setting = (this.app as unknown as { setting?: { open(): void; openTabById(id: string): void } }).setting;
+		try {
+			setting?.open();
+			setting?.openTabById(this.manifest.id);
+		} catch {
+			new Notice("Open Settings → Burnish to get started.");
+		}
 	}
 
 	/** Keep the history store keyed correctly as notes are renamed or deleted. */
@@ -79,6 +118,7 @@ export default class BurnishPlugin extends Plugin {
 
 	async loadSettings() {
 		const data: unknown = await this.loadData();
+		this.freshInstall = data === null || data === undefined;
 		this.settings = normalizeSettings(data as Partial<BurnishSettings> | null);
 	}
 

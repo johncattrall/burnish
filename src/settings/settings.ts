@@ -67,6 +67,9 @@ export interface BurnishSettings {
 	/** Where merged / new notes are written. Empty = vault root. */
 	newNoteFolder: string;
 
+	/** Last plugin version whose "what's new" notice was shown, to show it once per upgrade. */
+	lastWhatsNewVersion: string;
+
 	/** Snapshot the pre-edit version of notes so edits can be rolled back. */
 	history: { enabled: boolean; maxPerNote: number };
 	/** Stored snapshots, keyed by note path. Not shown in the UI directly. */
@@ -108,6 +111,8 @@ export const DEFAULT_SETTINGS: BurnishSettings = {
 
 	mergeAttribution: true,
 	newNoteFolder: "",
+
+	lastWhatsNewVersion: "",
 
 	history: { enabled: true, maxPerNote: 3 },
 	historyStore: {},
