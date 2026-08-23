@@ -20,22 +20,22 @@ export class WhatsNewModal extends Modal {
 
 		const c = this.contentEl;
 		c.createEl("p", {
-			text: "Burnish now runs without your own API key if you want it to - and there is more it can do.",
+			text: "You can now use Burnish without your own API key, and there is more it can do.",
 		});
 
 		const ul = c.createEl("ul");
 		const items = [
-			"Burnish (hosted): sign up with just your email for a free tier - no API key needed. Tidy and Format cleanup, 20 actions a month, plus 3 one-time previews of the Pro features.",
-			"Upgrade to Pro for every action (Restructure, Distill, Merge, diagrams, tables, Map of Content, custom prompts) on stronger models.",
-			"Prefer your own key? Nothing changes - Bring your own key (Anthropic, any OpenAI-compatible endpoint, or a local model) stays free and unlimited.",
-			"Your notes are only ever sent to the model you choose, and never written without a diff preview.",
+			"Free tier, no API key needed: sign up with just your email for Tidy and Format cleanup, 20 actions a month, plus 3 one-time previews of the Pro features.",
+			"Burnish Pro: unlock every action (Restructure, Distill, Merge, diagrams, tables, Map of Content, custom prompts) on stronger models. $5/month or $25/year.",
+			"Bring your own key still works exactly as before: Anthropic, any OpenAI-compatible endpoint, or a local model, free and unlimited.",
+			"As always, your notes go only to the model you choose, and nothing is written without a diff preview.",
 		];
 		for (const t of items) ul.createEl("li", { text: t });
 
 		const footer = new Setting(c);
 		footer.addButton((b) =>
 			b
-				.setButtonText("Try Burnish (no key needed)")
+				.setButtonText("Try Burnish Pro")
 				.setCta()
 				.onClick(() => {
 					this.onOpenSettings();

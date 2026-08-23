@@ -42,6 +42,9 @@ import { HistoryModal } from "./ui/HistoryModal";
 import { confirm } from "./ui/ConfirmModal";
 import { replaceRange, insertAtCursor, type TargetRange } from "./util/apply";
 
+/** Identifies the current "what's new" announcement. Bump only when the notice content changes. */
+const WHATS_NEW_ID = "1.1";
+
 export default class BurnishPlugin extends Plugin {
 	settings: BurnishSettings = DEFAULT_SETTINGS;
 	/** True when there was no saved data.json on load (a first-ever install, not an upgrade). */
@@ -63,22 +66,25 @@ export default class BurnishPlugin extends Plugin {
 		this.app.workspace.onLayoutReady(() => this.maybeShowWhatsNew());
 	}
 
-	/** Show the upgrade notice once per version. Skips fresh installs (they get onboarding, not news). */
+	/**
+	 * Show the upgrade notice once per announcement (not per patch release, so bugfix versions
+	 * don't re-pop it). Bump WHATS_NEW_ID when there is a new thing worth announcing. Skips fresh
+	 * installs, which get onboarding rather than upgrade news.
+	 */
 	private maybeShowWhatsNew() {
-		const current = this.manifest.version;
+		const id = WHATS_NEW_ID;
 		if (this.freshInstall) {
-			// New user: no upgrade news, but mark this version so they never see it retroactively.
-			if (this.settings.lastWhatsNewVersion !== current) {
-				this.settings.lastWhatsNewVersion = current;
+			if (this.settings.lastWhatsNewVersion !== id) {
+				this.settings.lastWhatsNewVersion = id;
 				void this.saveSettings();
 			}
 			return;
 		}
-		if (this.settings.lastWhatsNewVersion === current) return;
+		if (this.settings.lastWhatsNewVersion === id) return;
 		new WhatsNewModal(
 			this.app,
 			() => {
-				this.settings.lastWhatsNewVersion = current;
+				this.settings.lastWhatsNewVersion = id;
 				void this.saveSettings();
 			},
 			() => this.openBurnishSettings(),
