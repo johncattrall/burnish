@@ -90,7 +90,7 @@ export const DEFAULT_SETTINGS: BurnishSettings = {
 	anthropic: { apiKey: "", model: "claude-sonnet-4-6" },
 	openai: { baseUrl: "https://api.openai.com/v1", apiKey: "", model: "gpt-4o-mini" },
 	hosted: {
-		baseUrl: "https://burnish-gateway.workers.dev",
+		baseUrl: "https://burnish-gateway.johncattrall.workers.dev",
 		hostedKey: "",
 		email: "",
 		tier: "",
