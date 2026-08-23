@@ -21,23 +21,27 @@ When you configure your own API key or a local model:
 - Burnish operates **no server** in this mode and never receives, stores, or sees your content.
 - Your handling of that data is then governed by **your chosen provider's** privacy policy.
 
-### Burnish Pro (optional, hosted)
+### Burnish hosted tiers - Free and Pro (optional)
 
-If you opt in to the paid hosted tier and paste a Burnish license key:
+If you sign up with your email to use the hosted Burnish tiers:
 
-- Requests are sent to the Burnish proxy, which validates your license, enforces usage quota, and
-  forwards the request to a model provider using our key.
+- You provide your **email address**, and the gateway issues an opaque **account token** (not a
+  license key) that is stored locally and sent with each request to authenticate you.
+- Requests are sent to the Burnish gateway, which validates your token, enforces the tier limits
+  (feature gate and monthly quota), and forwards the request to a model provider using its own key.
 - **Note content is processed transiently and is not retained.** We do not store the text of your
   notes after a request completes.
-- We log non-content metadata required to operate the service: your license key identifier,
-  timestamps, and token counts (for quota and billing). We do not log note content.
+- We log non-content metadata required to operate the service: your account token identifier, your
+  email, timestamps, and token/action counts (for quota and billing). We do not log note content.
+- **Payments** for Pro are handled entirely by [Polar](https://polar.sh) as Merchant of Record.
+  Your card details go to Polar, not to Burnish; Burnish receives only your subscription status.
 
-This section applies only if you explicitly enable Burnish Pro. It does nothing unless you paste a
-license key.
+This section applies only if you explicitly sign up for a hosted tier. It does nothing unless you
+enter your email.
 
 ## Local storage of keys
 
-Your API keys and any license key are stored in this plugin's settings file (`data.json`) inside
+Your API keys and any Burnish account token are stored in this plugin's settings file (`data.json`) inside
 your vault. **Obsidian does not encrypt plugin settings.** Anyone with access to your vault files
 can read them. Treat the file accordingly and do not commit it to source control.
 
