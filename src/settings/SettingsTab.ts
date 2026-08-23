@@ -157,7 +157,7 @@ export class BurnishSettingTab extends PluginSettingTab {
 							.addOptions({
 								anthropic: "Anthropic",
 								openai: "OpenAI-compatible",
-								hosted: "Burnish Plus (coming soon)",
+								hosted: "Burnish Plus (hosted)",
 							})
 							.setValue(this.s.provider)
 							.onChange((v) => {
