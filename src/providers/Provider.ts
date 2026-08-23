@@ -11,6 +11,11 @@ export interface CompletionRequest {
 	temperature?: number;
 	/** Soft cap on output tokens. */
 	maxTokens?: number;
+	/**
+	 * Action identifier (e.g. "tidy", "merge", "mermaid", "custom"). Sent to the hosted gateway
+	 * for per-tier feature gating; ignored by the BYO-key providers.
+	 */
+	action?: string;
 	/** Aborts an in-flight request (e.g. user cancels the diff). */
 	signal?: AbortSignal;
 }
@@ -34,6 +39,22 @@ export class ProviderError extends Error {
 	) {
 		super(message);
 		this.name = "ProviderError";
+	}
+}
+
+/**
+ * Thrown by the hosted provider when the gateway declines on tier limits: either the action is
+ * Pro-only ("feature_locked") or the monthly free credits are used up ("quota_exceeded"). Carries
+ * an upgrade URL so the UI can prompt the user to subscribe.
+ */
+export class HostedLimitError extends Error {
+	constructor(
+		readonly reason: "feature_locked" | "quota_exceeded",
+		readonly upgradeUrl: string | undefined,
+		message: string,
+	) {
+		super(message);
+		this.name = "HostedLimitError";
 	}
 }
 

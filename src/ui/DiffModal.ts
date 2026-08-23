@@ -1,5 +1,6 @@
 import { Modal, Notice, Setting, type App } from "obsidian";
 import { computeDiff, reconstruct, type DiffResult } from "../core/diff";
+import { HostedLimitError } from "../providers/Provider";
 
 /**
  * The trust feature: run the model, then show a per-hunk diff the user accepts or rejects before
@@ -97,6 +98,28 @@ export class DiffModal extends Modal {
 			this.running = false;
 			this.statusEl.setText("");
 			this.bodyEl.empty();
+
+			// Hosted tier limit: show a friendly upgrade prompt instead of a raw error.
+			if (e instanceof HostedLimitError) {
+				this.bodyEl.createDiv({ cls: "burnish-warning", text: e.message });
+				this.footerEl.empty();
+				const s = new Setting(this.footerEl);
+				const url = e.upgradeUrl;
+				if (url) {
+					s.addButton((b) =>
+						b
+							.setButtonText("Upgrade to Pro")
+							.setCta()
+							.onClick(() => {
+								window.open(url, "_blank");
+								this.close();
+							}),
+					);
+				}
+				s.addButton((b) => b.setButtonText("Close").onClick(() => this.close()));
+				return;
+			}
+
 			this.bodyEl.createDiv({
 				cls: "burnish-error",
 				text: `Failed: ${e instanceof Error ? e.message : String(e)}`,

@@ -515,6 +515,7 @@ export default class BurnishPlugin extends Plugin {
 			original: "",
 			run: (signal) =>
 				provider.complete({
+					action: "merge",
 					system: MERGE_SYSTEM,
 					user,
 					temperature: this.settings.temperature,
@@ -541,6 +542,7 @@ export default class BurnishPlugin extends Plugin {
 			original: "",
 			run: (signal) =>
 				provider.complete({
+					action: "mermaid",
 					system: MERMAID_SYSTEM,
 					user: buildMermaidUser({ kind: "auto", source }),
 					temperature: this.settings.temperature,
@@ -566,6 +568,7 @@ export default class BurnishPlugin extends Plugin {
 			original: "",
 			run: (signal) =>
 				provider.complete({
+					action: "table",
 					system: TABLE_SYSTEM,
 					user: buildTableUser(source),
 					temperature: this.settings.temperature,
@@ -604,6 +607,7 @@ export default class BurnishPlugin extends Plugin {
 					original: "",
 					run: (signal) =>
 						provider.complete({
+							action: "moc",
 							system: MOC_SYSTEM,
 							user: buildMocUser(mocTitle, entries),
 							temperature: this.settings.temperature,

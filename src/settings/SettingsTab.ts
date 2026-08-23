@@ -1,5 +1,6 @@
 import {
 	App,
+	Notice,
 	PluginSettingTab,
 	Setting,
 	type SettingDefinition,
@@ -9,6 +10,7 @@ import type BurnishPlugin from "../main";
 import type { Grit, PromptAction, ProviderId } from "./settings";
 import { countSnapshots, clearHistory } from "../core/history";
 import { confirm } from "../ui/ConfirmModal";
+import { signup, fetchStatus } from "../providers/hostedClient";
 
 /**
  * Settings UI. Implemented with Obsidian 1.13's declarative settings API
@@ -71,6 +73,60 @@ export class BurnishSettingTab extends PluginSettingTab {
 
 	private group(heading: string, items: SettingDefinition[]): SettingDefinitionItem {
 		return { type: "group", heading, items };
+	}
+
+	private async hostedSignup(): Promise<void> {
+		const h = this.s.hosted;
+		if (!h.email.trim()) {
+			new Notice("Enter an email first.");
+			return;
+		}
+		try {
+			const acct = await signup(h.baseUrl, h.email.trim());
+			h.hostedKey = acct.hostedKey;
+			h.tier = acct.tier;
+			h.creditsRemaining = acct.creditsRemaining;
+			h.resetsAt = acct.resetsAt;
+			h.upgradeUrl = acct.upgradeUrl ?? "";
+			await this.plugin.saveSettings();
+			new Notice("Burnish Plus: signed up. Free credits are ready.");
+			this.update();
+		} catch (e) {
+			new Notice(`Burnish: ${e instanceof Error ? e.message : String(e)}`);
+		}
+	}
+
+	private async hostedRefresh(): Promise<void> {
+		const h = this.s.hosted;
+		if (!h.hostedKey) return;
+		try {
+			const st = await fetchStatus(h.baseUrl, h.hostedKey);
+			h.tier = st.tier;
+			h.creditsRemaining = st.creditsRemaining;
+			h.resetsAt = st.resetsAt;
+			if (st.upgradeUrl) h.upgradeUrl = st.upgradeUrl;
+			await this.plugin.saveSettings();
+			this.update();
+		} catch (e) {
+			new Notice(`Burnish: ${e instanceof Error ? e.message : String(e)}`);
+		}
+	}
+
+	private async hostedSignOut(): Promise<void> {
+		const h = this.s.hosted;
+		h.hostedKey = "";
+		h.tier = "";
+		h.creditsRemaining = null;
+		h.resetsAt = "";
+		h.upgradeUrl = "";
+		await this.plugin.saveSettings();
+		this.update();
+	}
+
+	private openUpgrade(): void {
+		const url = this.s.hosted.upgradeUrl;
+		if (url) window.open(url, "_blank");
+		else new Notice("Upgrade link unavailable - try Refresh.");
 	}
 
 	private async clearAllHistory(): Promise<void> {
@@ -173,34 +229,75 @@ export class BurnishSettingTab extends PluginSettingTab {
 				),
 			);
 		} else {
-			items.push(
-				this.row(
-					"Burnish Plus is coming soon",
-					"The hosted endpoint is not live yet. For now, use the Anthropic or OpenAI-compatible provider with your own key. The fields below are kept for when Plus launches.",
-					(s) => s.settingEl.addClass("burnish-warning"),
-				),
-			);
-			items.push(
-				this.row(
-					"Burnish Plus license key",
-					"Paste your license key; no LLM API key needed. We proxy to a managed model.",
-					(s) =>
+			const h = this.s.hosted;
+			if (!h.hostedKey) {
+				// Not signed in: email + Start free.
+				items.push(
+					this.note(
+						"Burnish Plus: no API key needed. Sign up with your email for free credits (Tidy), then upgrade for all features. Your notes are processed transiently and not stored.",
+					),
+				);
+				items.push(
+					this.row("Email", undefined, (s) =>
 						s.addText((t) =>
 							t
-								.setPlaceholder("BURNISH-…")
-								.setValue(this.s.hosted.licenseKey)
+								.setPlaceholder("you@example.com")
+								.setValue(h.email)
 								.onChange((v) => {
-									this.s.hosted.licenseKey = v.trim();
+									h.email = v.trim();
 									void this.save();
 								}),
 						),
-				),
-			);
+					),
+				);
+				items.push(
+					this.row("Start free", undefined, (s) =>
+						s.addButton((b) =>
+							b
+								.setButtonText("Start free")
+								.setCta()
+								.onClick(() => void this.hostedSignup()),
+						),
+					),
+				);
+			} else {
+				// Signed in: show tier + credits, refresh, upgrade, sign out.
+				const credits =
+					h.tier === "pro"
+						? "Pro"
+						: h.creditsRemaining === null
+							? "Free"
+							: `Free · ${h.creditsRemaining} actions left this month`;
+				items.push(
+					this.row(
+						h.email,
+						h.resetsAt ? `${credits} · resets ${h.resetsAt.slice(0, 10)}` : credits,
+						(s) => {
+							s.addButton((b) => b.setButtonText("Refresh").onClick(() => void this.hostedRefresh()));
+							if (h.tier !== "pro") {
+								s.addButton((b) =>
+									b
+										.setButtonText("Upgrade to Pro")
+										.setCta()
+										.onClick(() => this.openUpgrade()),
+								);
+							}
+							s.addExtraButton((b) =>
+								b
+									.setIcon("log-out")
+									.setTooltip("Sign out")
+									.onClick(() => void this.hostedSignOut()),
+							);
+						},
+					),
+				);
+			}
+			// Advanced: gateway URL (rarely changed).
 			items.push(
-				this.row("Endpoint", undefined, (s) =>
+				this.row("Gateway URL", "Advanced - the Burnish Plus endpoint.", (s) =>
 					s.addText((t) =>
-						t.setValue(this.s.hosted.baseUrl).onChange((v) => {
-							this.s.hosted.baseUrl = v.trim();
+						t.setValue(h.baseUrl).onChange((v) => {
+							h.baseUrl = v.trim();
 							void this.save();
 						}),
 					),

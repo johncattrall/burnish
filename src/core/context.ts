@@ -50,6 +50,7 @@ export function buildRequest(opts: BuildOptions): BuiltRequest {
 			user: userText,
 			model: opts.model,
 			temperature: opts.temperature,
+			action: opts.action.id,
 			signal: opts.signal,
 		},
 		original: opts.targetText,

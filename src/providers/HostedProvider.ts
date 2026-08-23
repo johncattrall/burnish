@@ -1,18 +1,18 @@
+import { requestUrl } from "obsidian";
 import type { CompletionRequest, Provider } from "./Provider";
-import { ProviderError } from "./Provider";
-import { requestJson } from "./http";
+import { HostedLimitError, ProviderError } from "./Provider";
 
 export interface HostedConfig {
 	baseUrl: string;
-	licenseKey: string;
-	model: string;
+	hostedKey: string;
 }
 
 /**
- * Burnish Plus provider (buffered via requestUrl). Identical in spirit to the others but posts to
- * our proxy with the user's Burnish *license key* (not an LLM key). The proxy validates the
- * license, enforces quota, and forwards to a model provider with our secret key.
- * See "Burnish - Monetization & Hosted API" §4-5.
+ * Burnish Plus provider. Posts to the gateway with the user's hosted key (issued at email
+ * signup). The gateway validates the key, enforces tier limits (feature gate + monthly cap),
+ * picks the model, and returns `{ text, creditsRemaining, resetsAt }`. On a tier limit it returns
+ * 402 with `feature_locked` or `quota_exceeded`, which we surface as {@link HostedLimitError} so
+ * the UI can prompt an upgrade. Buffered via requestUrl (no streaming).
  */
 export class HostedProvider implements Provider {
 	readonly id = "hosted";
@@ -20,21 +20,45 @@ export class HostedProvider implements Provider {
 	constructor(private cfg: HostedConfig) {}
 
 	async *complete(req: CompletionRequest): AsyncIterable<string> {
-		if (!this.cfg.licenseKey) {
-			throw new ProviderError("No Burnish Plus license key set in settings.");
+		if (!this.cfg.hostedKey) {
+			throw new ProviderError("Not signed in to Burnish Hosted. Add your email in settings.");
 		}
 		const base = this.cfg.baseUrl.replace(/\/$/, "");
-		const url = `${base}/v1/complete`;
-		const headers = { Authorization: `Bearer ${this.cfg.licenseKey}` };
-		const body = {
-			model: req.model ?? this.cfg.model,
-			max_tokens: req.maxTokens ?? 4096,
-			temperature: req.temperature ?? 0.3,
-			system: req.system,
-			user: req.user,
-		};
+		const res = await requestUrl({
+			url: `${base}/v1/complete`,
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				Authorization: `Bearer ${this.cfg.hostedKey}`,
+			},
+			body: JSON.stringify({
+				action: req.action,
+				system: req.system,
+				user: req.user,
+				max_tokens: req.maxTokens ?? 4096,
+				temperature: req.temperature ?? 0.3,
+			}),
+			throw: false,
+		});
 
-		const json = (await requestJson({ url, headers, body })) as { text?: string };
-		yield json.text ?? "";
+		const json = res.json as {
+			text?: string;
+			error?: string;
+			upgradeUrl?: string;
+			message?: string;
+		} | null;
+
+		if (res.status === 402 && (json?.error === "feature_locked" || json?.error === "quota_exceeded")) {
+			const msg =
+				json.error === "feature_locked"
+					? "That action is a Burnish Plus feature. Upgrade to unlock it."
+					: "You've used this month's free Burnish credits. Upgrade for more.";
+			throw new HostedLimitError(json.error, json.upgradeUrl, msg);
+		}
+		if (res.status < 200 || res.status >= 300) {
+			throw new ProviderError(json?.message ?? json?.error ?? `Hosted error ${res.status}`, res.status);
+		}
+
+		yield json?.text ?? "";
 	}
 }

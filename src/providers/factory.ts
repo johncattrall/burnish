@@ -10,7 +10,7 @@ export function makeProvider(s: BurnishSettings): Provider {
 		case "openai":
 			return new OpenAIProvider({ ...s.openai });
 		case "hosted":
-			return new HostedProvider({ ...s.hosted });
+			return new HostedProvider({ baseUrl: s.hosted.baseUrl, hostedKey: s.hosted.hostedKey });
 		case "anthropic":
 		default:
 			return new AnthropicProvider({ ...s.anthropic });
@@ -23,7 +23,7 @@ export function defaultModel(s: BurnishSettings): string {
 		case "openai":
 			return s.openai.model;
 		case "hosted":
-			return s.hosted.model;
+			return ""; // the hosted gateway chooses the model server-side
 		default:
 			return s.anthropic.model;
 	}
