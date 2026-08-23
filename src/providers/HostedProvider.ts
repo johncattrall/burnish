@@ -21,7 +21,9 @@ export class HostedProvider implements Provider {
 
 	async *complete(req: CompletionRequest): AsyncIterable<string> {
 		if (!this.cfg.hostedKey) {
-			throw new ProviderError("Not signed in to Burnish Hosted. Add your email in settings.");
+			throw new ProviderError(
+				"Add your email in settings to use Burnish (Free and Pro), or switch to your own API key.",
+			);
 		}
 		const base = this.cfg.baseUrl.replace(/\/$/, "");
 		const res = await requestUrl({
