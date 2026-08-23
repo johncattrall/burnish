@@ -173,14 +173,14 @@ export class BurnishSettingTab extends PluginSettingTab {
 		items.push(
 			this.row(
 				"Active provider",
-				"Burnish Pro (hosted, no key), or bring your own key for any Anthropic / OpenAI-compatible / local model.",
+				"Burnish, or bring your own key: Anthropic / OpenAI-compatible / local model.",
 				(s) =>
 					s.addDropdown((d) =>
 						d
 							.addOptions({
-								hosted: "Burnish Pro",
-								anthropic: "Bring your own key: Anthropic",
-								openai: "Bring your own key: OpenAI-compatible / local",
+								hosted: "Burnish",
+								anthropic: "BYOK Anthropic",
+								openai: "BYOK OpenAI-compatible",
 							})
 							.setValue(this.s.provider)
 							.onChange((v) => {
