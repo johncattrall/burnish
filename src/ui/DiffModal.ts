@@ -54,6 +54,13 @@ export class DiffModal extends Modal {
 		this.bodyEl = this.contentEl.createDiv({ cls: "burnish-diff-body" });
 		this.footerEl = this.contentEl.createDiv({ cls: "burnish-diff-footer" });
 
+		// Enter applies the currently-accepted hunks (no-op while generating or with no changes).
+		this.scope.register([], "Enter", (evt) => {
+			evt.preventDefault();
+			this.applyAccepted();
+			return false;
+		});
+
 		void this.runModel();
 	}
 
@@ -245,15 +252,20 @@ export class DiffModal extends Modal {
 			s.addButton((b) =>
 				b
 					.setButtonText("Apply")
+					.setTooltip("Apply (Enter)")
 					.setCta()
-					.onClick(() => {
-						const result = reconstruct(this.diff!, this.accepted).replace(/\n$/, "");
-						this.cfg.onApply(result);
-						const n = this.accepted.size;
-						new Notice(`Burnish: applied ${n} change${n === 1 ? "" : "s"}.`);
-						this.close();
-					}),
+					.onClick(() => this.applyAccepted()),
 			);
 		}
+	}
+
+	/** Apply the accepted hunks and close. Shared by the Apply button and the Enter shortcut. */
+	private applyAccepted() {
+		if (this.running || !this.diff || this.diff.hunks.length === 0) return;
+		const result = reconstruct(this.diff, this.accepted).replace(/\n$/, "");
+		this.cfg.onApply(result);
+		const n = this.accepted.size;
+		new Notice(`Burnish: applied ${n} change${n === 1 ? "" : "s"}.`);
+		this.close();
 	}
 }
