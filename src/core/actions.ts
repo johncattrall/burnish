@@ -8,6 +8,7 @@ import type { PromptAction } from "../settings/settings";
  */
 
 const OBSIDIAN_RULES = `You are editing a Markdown note inside Obsidian. Rules:
+- FIDELITY IS CRITICAL. Only reorganize and rewrite text that is already present. NEVER invent, add, or infer new information. Do not introduce names, people, places, facts, numbers, dates, quotes, or examples that are not in the source. If something is unclear, ambiguous, or incomplete, leave it exactly as written rather than guessing or filling it in. When in doubt, change less.
 - Preserve [[wikilinks]], #tags, ^block-refs and ![[embeds]] exactly.
 - Never alter fenced code blocks, inline code, or math ($...$, $$...$$).
 - Do not touch YAML frontmatter.

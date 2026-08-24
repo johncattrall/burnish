@@ -1,5 +1,5 @@
 import type { CompletionRequest, Provider } from "./Provider";
-import { requestJson } from "./http";
+import { requestJsonTolerant } from "./http";
 
 export interface OpenAIConfig {
 	baseUrl: string;
@@ -23,17 +23,20 @@ export class OpenAIProvider implements Provider {
 		// Local servers (Ollama/LM Studio) often need no key; only send when present.
 		if (this.cfg.apiKey) headers["Authorization"] = `Bearer ${this.cfg.apiKey}`;
 
-		const body = {
+		const body: Record<string, unknown> = {
 			model: req.model ?? this.cfg.model,
-			temperature: req.temperature ?? 0.3,
 			max_tokens: req.maxTokens ?? 4096,
 			messages: [
 				{ role: "system", content: req.system },
 				{ role: "user", content: req.user },
 			],
 		};
+		// Only send temperature when one is set. Newer models (GPT-5 / o-series) reject a custom
+		// temperature; omitting it uses the model default. requestJsonTolerant also drops it on
+		// demand if a model rejects it despite being sent.
+		if (typeof req.temperature === "number") body.temperature = req.temperature;
 
-		const json = (await requestJson({ url, headers, body })) as {
+		const json = (await requestJsonTolerant({ url, headers, body })) as {
 			choices?: Array<{ message?: { content?: string } }>;
 		};
 		yield json.choices?.[0]?.message?.content ?? "";

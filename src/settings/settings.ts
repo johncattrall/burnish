@@ -56,6 +56,8 @@ export interface BurnishSettings {
 
 	defaultGrit: Grit;
 	temperature: number;
+	/** When false, no temperature is sent and each model uses its own default (needed by Opus 5 etc.). */
+	sendTemperature: boolean;
 	/** Warn / offer chunking above this estimated input token count. */
 	costGuardTokens: number;
 
@@ -104,6 +106,7 @@ export const DEFAULT_SETTINGS: BurnishSettings = {
 
 	defaultGrit: "medium",
 	temperature: 0.3,
+	sendTemperature: true,
 	costGuardTokens: 12000,
 
 	actions: DEFAULT_ACTIONS,

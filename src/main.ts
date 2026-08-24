@@ -243,6 +243,11 @@ export default class BurnishPlugin extends Plugin {
 		return this.settings.defaultGrit;
 	}
 
+	/** Temperature to send, or undefined to let the model use its own default (see sendTemperature). */
+	private temperatureForRequest(): number | undefined {
+		return this.settings.sendTemperature ? this.settings.temperature : undefined;
+	}
+
 	/** Resolve the model for an action on a given path (folder default > action > provider default). */
 	private modelFor(action: PromptAction, path: string): string {
 		const { modelOverride } = resolveForPath(this.settings, path, action.id);
@@ -298,7 +303,7 @@ export default class BurnishPlugin extends Plugin {
 			grit: action.grit ?? this.grit(),
 			protectRegions: true,
 			model: this.modelFor(action, file?.path ?? ""),
-			temperature: this.settings.temperature,
+			temperature: this.temperatureForRequest(),
 		});
 
 		const provider = makeProvider(this.settings);
@@ -382,7 +387,7 @@ export default class BurnishPlugin extends Plugin {
 			grit: action.grit ?? this.grit(),
 			protectRegions: true,
 			model: this.modelFor(action, file.path),
-			temperature: this.settings.temperature,
+			temperature: this.temperatureForRequest(),
 		});
 		const provider = makeProvider(this.settings);
 		const raw = await collect(provider.complete(built.request));
@@ -564,7 +569,7 @@ export default class BurnishPlugin extends Plugin {
 					action: "merge",
 					system: MERGE_SYSTEM,
 					user,
-					temperature: this.settings.temperature,
+					temperature: this.temperatureForRequest(),
 					maxTokens: 8192,
 					signal,
 				}),
@@ -591,7 +596,7 @@ export default class BurnishPlugin extends Plugin {
 					action: "mermaid",
 					system: MERMAID_SYSTEM,
 					user: buildMermaidUser({ kind: "auto", source }),
-					temperature: this.settings.temperature,
+					temperature: this.temperatureForRequest(),
 					signal,
 				}),
 			transform: (raw) => normalizeMermaid(raw),
@@ -617,7 +622,7 @@ export default class BurnishPlugin extends Plugin {
 					action: "table",
 					system: TABLE_SYSTEM,
 					user: buildTableUser(source),
-					temperature: this.settings.temperature,
+					temperature: this.temperatureForRequest(),
 					signal,
 				}),
 			transform: (raw) => normalizeTable(raw),
@@ -656,7 +661,7 @@ export default class BurnishPlugin extends Plugin {
 							action: "moc",
 							system: MOC_SYSTEM,
 							user: buildMocUser(mocTitle, entries),
-							temperature: this.settings.temperature,
+							temperature: this.temperatureForRequest(),
 							maxTokens: 4096,
 							signal,
 						}),

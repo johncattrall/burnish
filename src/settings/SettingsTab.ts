@@ -342,17 +342,33 @@ export class BurnishSettingTab extends PluginSettingTab {
 						}),
 				),
 			),
-			this.row("Temperature", undefined, (s) =>
-				s.addSlider((sl) =>
-					sl
-						.setLimits(0, 1, 0.1)
-						.setValue(this.s.temperature)
-						.onChange((v) => {
-							this.s.temperature = v;
+			this.row(
+				"Custom temperature",
+				"Off = let each model use its own default. The newest models (e.g. Opus 5) ignore a custom temperature, and Burnish drops it automatically for those.",
+				(s) =>
+					s.addToggle((t) =>
+						t.setValue(this.s.sendTemperature).onChange((v) => {
+							this.s.sendTemperature = v;
 							void this.save();
+							this.update();
 						}),
-				),
+					),
 			),
+			...(this.s.sendTemperature
+				? [
+						this.row("Temperature", "Lower is more literal; higher is more varied.", (s) =>
+							s.addSlider((sl) =>
+								sl
+									.setLimits(0, 1, 0.1)
+									.setValue(this.s.temperature)
+									.onChange((v) => {
+										this.s.temperature = v;
+										void this.save();
+									}),
+							),
+						),
+					]
+				: []),
 			this.row("Cost guard (input tokens)", "Warn before sending notes larger than this estimate.", (s) =>
 				s.addText((t) =>
 					t.setValue(String(this.s.costGuardTokens)).onChange((v) => {
