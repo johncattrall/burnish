@@ -12,7 +12,7 @@ const OBSIDIAN_RULES = `You are editing a Markdown note inside Obsidian. Rules:
 - Preserve [[wikilinks]], #tags, ^block-refs and ![[embeds]] exactly.
 - Never alter fenced code blocks, inline code, or math ($...$, $$...$$).
 - Do not touch YAML frontmatter.
-- Return ONLY the edited Markdown, with no commentary, preamble, or code fences around the whole note.`;
+- Return ONLY the edited Markdown, with no commentary, preamble, or code fences around the whole note. Never emit internal reasoning, <thinking> tags, tool calls, or any system/XML tags.`;
 
 function preset(
 	id: string,

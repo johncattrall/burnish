@@ -7,7 +7,7 @@ import {
 	type SettingDefinitionItem,
 } from "obsidian";
 import type BurnishPlugin from "../main";
-import type { Grit, PromptAction, ProviderId } from "./settings";
+import type { BurnishSettings, Grit, PromptAction, ProviderId } from "./settings";
 import { countSnapshots, clearHistory } from "../core/history";
 import { confirm } from "../ui/ConfirmModal";
 import { signup, fetchStatus } from "../providers/hostedClient";
@@ -369,6 +369,20 @@ export class BurnishSettingTab extends PluginSettingTab {
 						),
 					]
 				: []),
+			this.row(
+				"Reasoning effort",
+				"For models that reason (Claude 5 family, OpenAI reasoning models). Low keeps cleanup faithful - higher effort makes the newest models elaborate and can cause hallucination. Ignored by models that don't reason.",
+				(s) =>
+					s.addDropdown((d) =>
+						d
+							.addOptions({ low: "Low", medium: "Medium", high: "High" })
+							.setValue(this.s.reasoningEffort)
+							.onChange((v) => {
+								this.s.reasoningEffort = v as BurnishSettings["reasoningEffort"];
+								void this.save();
+							}),
+					),
+			),
 			this.row("Cost guard (input tokens)", "Warn before sending notes larger than this estimate.", (s) =>
 				s.addText((t) =>
 					t.setValue(String(this.s.costGuardTokens)).onChange((v) => {

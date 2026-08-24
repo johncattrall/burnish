@@ -58,6 +58,12 @@ export interface BurnishSettings {
 	temperature: number;
 	/** When false, no temperature is sent and each model uses its own default (needed by Opus 5 etc.). */
 	sendTemperature: boolean;
+	/**
+	 * Reasoning depth for models that reason (Claude 5 family via output_config.effort; OpenAI
+	 * reasoning models via reasoning_effort). "low" keeps cleanup faithful - deep reasoning makes
+	 * the newest models elaborate/hallucinate on rewrite tasks. Dropped for models that don't reason.
+	 */
+	reasoningEffort: "low" | "medium" | "high";
 	/** Warn / offer chunking above this estimated input token count. */
 	costGuardTokens: number;
 
@@ -107,6 +113,7 @@ export const DEFAULT_SETTINGS: BurnishSettings = {
 	defaultGrit: "medium",
 	temperature: 0.3,
 	sendTemperature: true,
+	reasoningEffort: "low",
 	costGuardTokens: 12000,
 
 	actions: DEFAULT_ACTIONS,

@@ -8,6 +8,8 @@ export interface AnthropicConfig {
 	apiKey: string;
 	model: string;
 	baseUrl?: string;
+	/** Reasoning depth for models that reason (low/medium/high). "low" keeps cleanup faithful. */
+	effort?: string;
 }
 
 /** Anthropic Messages API provider (buffered via requestUrl). */
@@ -32,6 +34,12 @@ export class AnthropicProvider implements Provider {
 			max_tokens: req.maxTokens ?? 4096,
 			system: req.system,
 			messages: [{ role: "user", content: req.user }],
+			// Cleanup needs faithful reproduction, not reasoning. The newest models default to deep
+			// reasoning (effort=high, thinking on) and then elaborate/hallucinate on rewrite tasks, so
+			// we minimize it. requestJsonTolerant drops these for models that reject them (older models
+			// ignore output_config; Fable 5 can't disable thinking) and remembers per model.
+			output_config: { effort: this.cfg.effort ?? "low" },
+			thinking: { type: "disabled" },
 		};
 		// Only send temperature when one is set. Some models (Opus 5 / the Claude 5 family) reject a
 		// custom temperature; omitting it uses the model default. requestJsonTolerant also drops it

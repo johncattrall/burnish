@@ -5,6 +5,8 @@ export interface OpenAIConfig {
 	baseUrl: string;
 	apiKey: string;
 	model: string;
+	/** Reasoning depth for reasoning models (low/medium/high). Dropped for non-reasoning models. */
+	effort?: string;
 }
 
 /**
@@ -30,6 +32,9 @@ export class OpenAIProvider implements Provider {
 				{ role: "system", content: req.system },
 				{ role: "user", content: req.user },
 			],
+			// Keep reasoning low for faithful cleanup. requestJsonTolerant drops reasoning_effort for
+			// non-reasoning models (e.g. gpt-4o) that reject it, remembering per model.
+			reasoning_effort: this.cfg.effort ?? "low",
 		};
 		// Only send temperature when one is set. Newer models (GPT-5 / o-series) reject a custom
 		// temperature; omitting it uses the model default. requestJsonTolerant also drops it on
